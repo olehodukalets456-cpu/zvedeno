@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts scheduler",
+    "start": "tsx src/index.ts scheduler",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit"
   },
@@ -15,7 +15,8 @@
     "@zvedeno/google-api": "workspace:*",
     "@zvedeno/meta-api": "workspace:*",
     "@zvedeno/reporting": "workspace:*",
-    "@zvedeno/shared": "workspace:*"
+    "@zvedeno/shared": "workspace:*",
+    "@zvedeno/sync-engine": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
