@@ -60,12 +60,7 @@ async function exchangeLongLivedToken(input: {
   url.searchParams.set("client_id", input.appId);
   url.searchParams.set("client_secret", input.appSecret);
   url.searchParams.set("fb_exchange_token", input.shortToken.access_token);
-  try {
-    return await readJson<MetaTokenResponse>(await fetch(url), "Meta long-lived token exchange");
-  } catch (error) {
-    console.warn("Long-lived token exchange failed; keeping the original token", error);
-    return input.shortToken;
-  }
+  return readJson<MetaTokenResponse>(await fetch(url), "Meta long-lived token exchange");
 }
 
 async function fetchAllAdAccounts(version: string, accessToken: string): Promise<MetaAdAccount[]> {
@@ -113,6 +108,10 @@ export async function GET(request: NextRequest) {
     const shortToken = await readJson<MetaTokenResponse>(await fetch(tokenUrl), "Meta token exchange");
     const token = await exchangeLongLivedToken({ version, appId, appSecret, shortToken });
 
+    if (!token.expires_in || token.expires_in < 7 * 24 * 60 * 60) {
+      throw new Error("Meta returned a short-lived token instead of a long-lived token");
+    }
+
     const profileUrl = new URL(`https://graph.facebook.com/${version}/me`);
     profileUrl.searchParams.set("fields", "id,name");
     profileUrl.searchParams.set("access_token", token.access_token);
@@ -149,7 +148,7 @@ export async function GET(request: NextRequest) {
       .values({ workspaceId: workspace.id, userId: owner.id, role: "owner" })
       .onConflictDoNothing();
 
-    const expiresAt = token.expires_in ? new Date(Date.now() + token.expires_in * 1000) : null;
+    const expiresAt = new Date(Date.now() + token.expires_in * 1000);
     const [existingConnection] = await db
       .select({ id: metaConnections.id })
       .from(metaConnections)
@@ -216,7 +215,8 @@ export async function GET(request: NextRequest) {
 
     const response = NextResponse.redirect(appUrl("/setup/accounts", {
       meta: "connected",
-      accounts: String(accountList.length)
+      accounts: String(accountList.length),
+      mode: "oauth_long_lived"
     }));
     response.cookies.delete("zvedeno_meta_oauth_state");
     return response;
