@@ -1,3 +1,4 @@
+import { runScheduledSyncCycle } from "@zvedeno/sync-engine";
 import { runMetaSync } from "./jobs/sync-meta";
 import { runSheetsSync } from "./jobs/sync-sheets";
 
@@ -9,7 +10,7 @@ async function runCycle(): Promise<void> {
 }
 
 async function runScheduler(): Promise<void> {
-  const minutes = Math.max(5, Number(process.env.SYNC_INTERVAL_MINUTES ?? 60));
+  const minutes = Math.max(5, Number(process.env.SYNC_INTERVAL_MINUTES ?? 15));
   const intervalMs = minutes * 60 * 1000;
   let running = false;
 
@@ -20,7 +21,8 @@ async function runScheduler(): Promise<void> {
     }
     running = true;
     try {
-      await runCycle();
+      const summary = await runScheduledSyncCycle();
+      console.info(JSON.stringify({ job: "scheduler-cycle", status: summary.errors > 0 ? "partial" : "ok", ...summary }));
     } catch (error) {
       console.error("Scheduled synchronization failed", error);
     } finally {
