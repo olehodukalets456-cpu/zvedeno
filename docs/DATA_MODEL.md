@@ -15,20 +15,23 @@ An ad account is a source, not the owner of a report.
 
 ## Daily facts
 
-Meta Insights are stored at daily granularity. The practical unique identity includes:
+Meta Insights are stored at daily granularity. Every normalized API row receives a deterministic `fact_key` built from:
 
 ```text
 project_id
 + ad_account_id
 + insight_date
-+ campaign_id
-+ adset_id
-+ ad_id
++ entity_level
++ entity_external_id
 + breakdown_hash
 + attribution_setting
 ```
 
-This supports safe UPSERT behavior and re-fetching recent days for late conversions.
+`fact_key` is stored as a non-null value and is unique inside a workspace. This avoids PostgreSQL null semantics creating duplicate facts for account-, campaign-, ad set- or ad-level rows.
+
+The relational `campaign_id`, `adset_id`, `ad_id` and `media_asset_id` columns remain available for filtering and aggregation, but the generated fact key is the UPSERT identity.
+
+This supports safe re-fetching of recent days for late conversions without duplicating spend or results.
 
 ## Flexible metrics and results
 
