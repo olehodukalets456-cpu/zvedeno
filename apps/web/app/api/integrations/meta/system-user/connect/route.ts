@@ -61,7 +61,7 @@ async function fetchAllAdAccounts(version: string, accessToken: string): Promise
   const accounts: MetaAdAccount[] = [];
   let next: string | undefined = initial.toString();
   while (next) {
-    const page = await readJson<MetaAdAccountPage>(await fetch(next), "Meta ad accounts request");
+    const page: MetaAdAccountPage = await readJson<MetaAdAccountPage>(await fetch(next), "Meta ad accounts request");
     accounts.push(...page.data);
     next = page.paging?.next;
   }
