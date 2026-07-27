@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import {
   adAccounts,
@@ -8,7 +8,7 @@ import {
   reportRecipes,
   workspaces
 } from "@zvedeno/database";
-import { syncMetaData } from "@zvedeno/sync-engine";
+import { syncGoogleReports, syncMetaData } from "@zvedeno/sync-engine";
 
 function slugify(value: string): string {
   const base = value
@@ -23,16 +23,37 @@ function redirectUrl(path: string): URL {
   return new URL(path, process.env.APP_URL ?? "http://localhost:3000");
 }
 
-export async function POST(request: NextRequest) {
-  const form = await request.formData();
-  const projectName = String(form.get("projectName") ?? "").trim();
-  const accountIds = form.getAll("accountIds").map(String).filter(Boolean);
-  const startDate = String(form.get("startDate") ?? "");
+function recipeConfig(form: FormData, startDate: string) {
   const lookbackDays = Number(form.get("lookbackDays") ?? 28);
   const refreshMinutes = Number(form.get("refreshMinutes") ?? 60);
   const selectedResult = String(form.get("resultMetric") ?? "auto");
+  return {
+    startDate,
+    lookbackDays: Number.isFinite(lookbackDays) ? lookbackDays : 28,
+    refreshMinutes: Number.isFinite(refreshMinutes) ? refreshMinutes : 60,
+    resultMetric: selectedResult === "auto" ? undefined : selectedResult,
+    resultLabel: selectedResult === "action.messaging_conversation_started_7d"
+      ? "Conversations"
+      : selectedResult === "action.omni_purchase"
+        ? "Purchases"
+        : selectedResult === "action.link_click"
+          ? "Clicks"
+          : "Results",
+    includeDaily: form.has("includeDaily"),
+    includeCreatives: form.has("includeCreatives"),
+    includeCampaigns: form.has("includeCampaigns"),
+    includeFunnel: form.has("includeFunnel")
+  };
+}
 
-  if (!projectName || accountIds.length === 0 || !startDate) {
+export async function POST(request: NextRequest) {
+  const form = await request.formData();
+  const projectName = String(form.get("projectName") ?? "").trim();
+  const existingProjectId = String(form.get("existingProjectId") ?? "").trim();
+  const accountIds = form.getAll("accountIds").map(String).filter(Boolean);
+  const startDate = String(form.get("startDate") ?? "");
+
+  if ((!existingProjectId && !projectName) || accountIds.length === 0 || !startDate) {
     return NextResponse.redirect(redirectUrl("/setup/accounts?error=missing_fields"), 303);
   }
 
@@ -60,64 +81,89 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(redirectUrl("/setup/accounts?error=invalid_accounts"), 303);
     }
 
-    const baseSlug = slugify(projectName);
-    const [sameSlug] = await db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(eq(projects.slug, baseSlug))
-      .limit(1);
-    const slug = sameSlug ? `${baseSlug}-${Date.now().toString(36)}` : baseSlug;
-
-    const [project] = await db
-      .insert(projects)
-      .values({
-        workspaceId: workspace.id,
-        name: projectName,
-        slug,
-        timezone: validAccounts[0].timezone ?? "UTC",
-        currency: validAccounts[0].currency
-      })
-      .returning({ id: projects.id });
+    let project: { id: string; name: string };
+    let existing = false;
+    if (existingProjectId) {
+      const [found] = await db
+        .select({ id: projects.id, name: projects.name })
+        .from(projects)
+        .where(and(eq(projects.id, existingProjectId), eq(projects.workspaceId, workspace.id)))
+        .limit(1);
+      if (!found) return NextResponse.redirect(redirectUrl("/setup/accounts?error=project_not_found"), 303);
+      project = found;
+      existing = true;
+    } else {
+      const baseSlug = slugify(projectName);
+      const [sameSlug] = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.workspaceId, workspace.id), eq(projects.slug, baseSlug)))
+        .limit(1);
+      const slug = sameSlug ? `${baseSlug}-${Date.now().toString(36)}` : baseSlug;
+      const [created] = await db
+        .insert(projects)
+        .values({
+          workspaceId: workspace.id,
+          name: projectName,
+          slug,
+          timezone: validAccounts[0].timezone ?? "UTC",
+          currency: validAccounts[0].currency
+        })
+        .returning({ id: projects.id, name: projects.name });
+      project = created;
+    }
 
     for (let index = 0; index < validAccounts.length; index += 1) {
-      await db.insert(projectAdAccounts).values({
+      await db
+        .insert(projectAdAccounts)
+        .values({
+          projectId: project.id,
+          adAccountId: validAccounts[index].id,
+          activeFrom: startDate,
+          isPrimary: !existing && index === 0
+        })
+        .onConflictDoUpdate({
+          target: [projectAdAccounts.projectId, projectAdAccounts.adAccountId],
+          set: { activeTo: null }
+        });
+    }
+
+    const config = recipeConfig(form, startDate);
+    const [currentRecipe] = await db
+      .select({ id: reportRecipes.id, config: reportRecipes.config })
+      .from(reportRecipes)
+      .where(and(eq(reportRecipes.projectId, project.id), eq(reportRecipes.enabled, true)))
+      .limit(1);
+    if (currentRecipe) {
+      await db
+        .update(reportRecipes)
+        .set({ config: { ...(currentRecipe.config as Record<string, unknown>), ...config }, updatedAt: new Date() })
+        .where(eq(reportRecipes.id, currentRecipe.id));
+    } else {
+      await db.insert(reportRecipes).values({
+        workspaceId: workspace.id,
         projectId: project.id,
-        adAccountId: validAccounts[index].id,
-        activeFrom: startDate,
-        isPrimary: index === 0
+        name: `${project.name} living report`,
+        config
       });
     }
 
-    await db.insert(reportRecipes).values({
-      workspaceId: workspace.id,
-      projectId: project.id,
-      name: `${projectName} living report`,
-      config: {
-        startDate,
-        lookbackDays: Number.isFinite(lookbackDays) ? lookbackDays : 28,
-        refreshMinutes: Number.isFinite(refreshMinutes) ? refreshMinutes : 60,
-        resultMetric: selectedResult === "auto" ? undefined : selectedResult,
-        resultLabel: selectedResult === "action.messaging_conversation_started_7d"
-          ? "Conversations"
-          : selectedResult === "action.omni_purchase"
-            ? "Purchases"
-            : selectedResult === "action.link_click"
-              ? "Clicks"
-              : "Results",
-        includeDaily: form.has("includeDaily"),
-        includeCreatives: form.has("includeCreatives"),
-        includeCampaigns: form.has("includeCampaigns"),
-        includeFunnel: form.has("includeFunnel")
-      }
-    });
+    const metaSummary = await syncMetaData({ projectId: project.id, dateFrom: startDate, fullBackfill: true, force: true });
+    if (existing) {
+      const sheetSummary = await syncGoogleReports({ projectId: project.id, force: true });
+      const url = redirectUrl(`/projects/${project.id}`);
+      url.searchParams.set("sync", "done");
+      url.searchParams.set("meta", String(metaSummary.insights));
+      url.searchParams.set("sheets", String(sheetSummary.appended + sheetSummary.updated));
+      return NextResponse.redirect(url, 303);
+    }
 
-    const summary = await syncMetaData({ projectId: project.id, dateFrom: startDate, fullBackfill: true });
     const url = redirectUrl(`/setup/google?projectId=${project.id}`);
-    url.searchParams.set("synced", String(summary.insights));
-    url.searchParams.set("errors", String(summary.errors));
+    url.searchParams.set("synced", String(metaSummary.insights));
+    url.searchParams.set("errors", String(metaSummary.errors));
     return NextResponse.redirect(url, 303);
   } catch (error) {
-    console.error("Project creation failed", error);
+    console.error("Project save failed", error);
     return NextResponse.redirect(redirectUrl("/setup/accounts?error=project_creation_failed"), 303);
   } finally {
     await pool.end();
