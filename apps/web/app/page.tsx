@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const steps = [
   {
     number: "01",
@@ -40,8 +42,8 @@ export default function HomePage() {
           креативами, напрямками й історією всіх рекламних кабінетів.
         </p>
         <div className="actions">
-          <button type="button" disabled>Підключити Meta — скоро</button>
-          <span>Foundation v0.1</span>
+          <Link className="primaryButton" href="/setup">Почати налаштування</Link>
+          <span>Foundation v0.2</span>
         </div>
       </section>
 
