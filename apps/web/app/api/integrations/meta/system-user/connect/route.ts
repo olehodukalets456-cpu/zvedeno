@@ -84,7 +84,8 @@ export async function GET() {
     debugUrl.searchParams.set("input_token", accessToken);
     debugUrl.searchParams.set("access_token", `${appId}|${appSecret}`);
     const debug = await readJson<MetaDebugTokenResponse>(await fetch(debugUrl), "Meta token validation");
-    if (!debug.data?.is_valid) throw new Error("Meta system user token is invalid");
+    const debugData = debug.data;
+    if (!debugData?.is_valid) throw new Error("Meta system user token is invalid");
 
     const profileUrl = new URL(`https://graph.facebook.com/${version}/me`);
     profileUrl.searchParams.set("fields", "id,name");
@@ -96,8 +97,8 @@ export async function GET() {
     const workspaceName = process.env.DEFAULT_WORKSPACE_NAME ?? "Oleh workspace";
     const workspaceSlug = process.env.DEFAULT_WORKSPACE_SLUG ?? "personal";
     const now = new Date();
-    const expiresAt = debug.data.expires_at && debug.data.expires_at > 0
-      ? new Date(debug.data.expires_at * 1000)
+    const expiresAt = debugData.expires_at && debugData.expires_at > 0
+      ? new Date(debugData.expires_at * 1000)
       : null;
 
     const [owner] = await db
