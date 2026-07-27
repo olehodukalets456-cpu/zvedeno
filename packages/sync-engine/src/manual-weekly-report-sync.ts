@@ -5,7 +5,11 @@ import {
   googleReports,
   projects
 } from "@zvedeno/database";
-import { ensureGoogleReportTabs, refreshGoogleAccessToken } from "./google-client";
+import {
+  ensureGoogleReportTabs,
+  googleValuesBatchUpdate,
+  refreshGoogleAccessToken
+} from "./google-client";
 import { syncManualAndWeeklySheets } from "./manual-weekly-sheets";
 
 export type ManualWeeklyReportSyncOptions = {
@@ -20,6 +24,28 @@ export type ManualWeeklyReportSyncSummary = {
   importedManualValues: number;
   errors: number;
 };
+
+const WEEKLY_HEADERS = [
+  {
+    range: "'Weekly Summary'!A1",
+    values: [[
+      "__key", "Week", "Spend", "Impressions", "Clicks", "Meta results", "Meta CPL",
+      "Manual metric", "Manual value", "Final CPA", "Meta → manual CR, %", "Status", "Comment"
+    ]]
+  },
+  {
+    range: "'Creative Weekly'!A1",
+    values: [[
+      "__key", "Preview", "Week", "Creative", "Format", "Accounts", "Spend", "Impressions",
+      "Clicks", "Meta results", "Meta CPL", "Manual metric", "Manual result", "Final CPA",
+      "Meta → manual CR, %", "Status", "Comment"
+    ]]
+  },
+  {
+    range: "'Manual Input'!A1",
+    values: [["__key", "Period start", "Period end", "Scope", "Entity", "Metric", "Value", "Note"]]
+  }
+];
 
 export async function syncManualWeeklyReports(
   options: ManualWeeklyReportSyncOptions = {}
@@ -58,6 +84,7 @@ export async function syncManualWeeklyReports(
       try {
         const accessToken = await refreshGoogleAccessToken(report.encryptedRefreshToken);
         await ensureGoogleReportTabs(accessToken, report.spreadsheetId);
+        await googleValuesBatchUpdate(accessToken, report.spreadsheetId, WEEKLY_HEADERS);
         const result = await syncManualAndWeeklySheets({
           db,
           accessToken,
