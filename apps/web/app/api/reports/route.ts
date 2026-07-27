@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
         spreadsheetUrl: spreadsheet.spreadsheetUrl
       })
       .returning({ id: googleReports.id });
+    if (!report) throw new Error("Failed to save Google report");
 
     const summary = await syncGoogleReports({ reportId: report.id });
     const url = appUrl(`/projects/${project.id}`);
