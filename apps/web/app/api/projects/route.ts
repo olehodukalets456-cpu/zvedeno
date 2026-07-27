@@ -8,7 +8,12 @@ import {
   reportRecipes,
   workspaces
 } from "@zvedeno/database";
-import { refreshCreativeWeeklySnapshots, syncGoogleReports, syncMetaData } from "@zvedeno/sync-engine";
+import {
+  refreshCreativeWeeklySnapshots,
+  syncGoogleReports,
+  syncManualWeeklyReports,
+  syncMetaData
+} from "@zvedeno/sync-engine";
 
 function slugify(value: string): string {
   const base = value
@@ -151,18 +156,23 @@ export async function POST(request: NextRequest) {
     }
 
     const metaSummary = await syncMetaData({ projectId: project.id, dateFrom: startDate, fullBackfill: true });
-    await refreshCreativeWeeklySnapshots({ projectId: project.id });
+    const weekly = await refreshCreativeWeeklySnapshots({ projectId: project.id });
     if (existing) {
       const sheetSummary = await syncGoogleReports({ projectId: project.id });
+      const manualWeekly = await syncManualWeeklyReports({ projectId: project.id });
       const url = redirectUrl(`/projects/${project.id}`);
       url.searchParams.set("sync", "done");
       url.searchParams.set("meta", String(metaSummary.insights));
-      url.searchParams.set("sheets", String(sheetSummary.appended + sheetSummary.updated));
+      url.searchParams.set("weekly", String(weekly.snapshots));
+      url.searchParams.set("sheets", String(
+        sheetSummary.appended + sheetSummary.updated + manualWeekly.appended + manualWeekly.updated
+      ));
       return NextResponse.redirect(url, 303);
     }
 
     const url = redirectUrl(`/setup/google?projectId=${project.id}`);
     url.searchParams.set("synced", String(metaSummary.insights));
+    url.searchParams.set("weekly", String(weekly.snapshots));
     url.searchParams.set("errors", String(metaSummary.errors));
     return NextResponse.redirect(url, 303);
   } catch (error) {
