@@ -193,6 +193,9 @@ export const dailyInsights = pgTable("daily_insights", {
   adId: uuid("ad_id").references(() => ads.id, { onDelete: "cascade" }),
   mediaAssetId: uuid("media_asset_id").references(() => mediaAssets.id, { onDelete: "set null" }),
   insightDate: date("insight_date").notNull(),
+  factKey: text("fact_key").notNull(),
+  entityLevel: text("entity_level").notNull(),
+  entityExternalId: text("entity_external_id").notNull(),
   breakdownHash: text("breakdown_hash").default("none").notNull(),
   attributionSetting: text("attribution_setting").default("default").notNull(),
   breakdowns: jsonb("breakdowns").$type<Record<string, string>>().default({}).notNull(),
@@ -200,17 +203,9 @@ export const dailyInsights = pgTable("daily_insights", {
   sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }),
   ...timestamps
 }, (table) => [
-  uniqueIndex("daily_insights_fact_uidx").on(
-    table.projectId,
-    table.adAccountId,
-    table.insightDate,
-    table.campaignId,
-    table.adSetId,
-    table.adId,
-    table.breakdownHash,
-    table.attributionSetting
-  ),
+  uniqueIndex("daily_insights_workspace_fact_uidx").on(table.workspaceId, table.factKey),
   index("daily_insights_project_date_idx").on(table.projectId, table.insightDate),
+  index("daily_insights_account_entity_date_idx").on(table.adAccountId, table.entityLevel, table.entityExternalId, table.insightDate),
   index("daily_insights_asset_date_idx").on(table.mediaAssetId, table.insightDate)
 ]);
 
