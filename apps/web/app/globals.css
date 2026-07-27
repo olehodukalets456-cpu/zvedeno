@@ -151,6 +151,24 @@ p { margin: 0; }
 .panelRow > div { display: grid; gap: 3px; }
 .rowMeta { text-align: right; color: var(--muted); }
 .reportRow:hover { border-color: var(--accent); }
+.featurePanel { display: grid; gap: 18px; }
+.panelDescription { max-width: 850px; color: var(--muted); line-height: 1.65; }
+.featureStats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.featureStats > div { display: grid; gap: 5px; padding: 18px; border: 1px solid var(--border); border-radius: 14px; background: #091720; }
+.featureStats strong { color: var(--accent); font-size: 30px; }
+.featureStats span { color: var(--muted); }
+.inlineFeatureForm { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: end; padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: #091720; }
+.inlineFeatureForm .fieldLabel { margin-top: 0; }
+.checkField { display: flex; align-items: center; gap: 9px; min-height: 48px; color: var(--muted); font-weight: 700; }
+.checkField input { width: 18px; height: 18px; accent-color: var(--accent); }
+.manualMetricGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.manualMetricCard { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: #091720; }
+.manualMetricCard > div { display: grid; gap: 4px; }
+.manualMetricCard form { display: grid; gap: 10px; }
+.manualMetricCard .fieldLabel { margin-top: 0; }
+.datePair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.manualHistory { margin-bottom: 0; }
+.manualHistory .panelRow > span { color: var(--muted); text-align: right; }
 
 @media (max-width: 850px) {
   main { padding-top: 48px; }
@@ -161,14 +179,17 @@ p { margin: 0; }
   .accountGrid, .toggleGrid { grid-template-columns: 1fr 1fr; }
   .inlineForm { min-width: 0; flex-direction: column; align-items: stretch; }
   .projectHeader { align-items: flex-start; flex-direction: column; }
+  .inlineFeatureForm, .manualMetricGrid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px) {
   main { width: min(100% - 24px, 1120px); }
   .hero { padding-top: 20px; }
-  .stepGrid, .accountGrid, .toggleGrid { grid-template-columns: 1fr; }
+  .stepGrid, .accountGrid, .toggleGrid, .featureStats, .datePair { grid-template-columns: 1fr; }
   .actions { align-items: flex-start; flex-direction: column; }
   .setupCard { grid-template-columns: 1fr; }
   .setupCard > :last-child { grid-column: 1; }
   .submitButton { width: 100%; }
+  .panelRow { flex-direction: column; }
+  .manualHistory .panelRow > span { text-align: left; }
 }
