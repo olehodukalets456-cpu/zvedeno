@@ -23,15 +23,14 @@ function redirectUrl(path: string): URL {
   return new URL(path, process.env.APP_URL ?? "http://localhost:3000");
 }
 
-function recipeConfig(form: FormData, startDate: string) {
+function recipeConfig(form: FormData, startDate: string): Record<string, unknown> {
   const lookbackDays = Number(form.get("lookbackDays") ?? 28);
   const refreshMinutes = Number(form.get("refreshMinutes") ?? 60);
   const selectedResult = String(form.get("resultMetric") ?? "auto");
-  return {
+  const config: Record<string, unknown> = {
     startDate,
     lookbackDays: Number.isFinite(lookbackDays) ? lookbackDays : 28,
     refreshMinutes: Number.isFinite(refreshMinutes) ? refreshMinutes : 60,
-    resultMetric: selectedResult === "auto" ? undefined : selectedResult,
     resultLabel: selectedResult === "action.messaging_conversation_started_7d"
       ? "Conversations"
       : selectedResult === "action.omni_purchase"
@@ -44,6 +43,8 @@ function recipeConfig(form: FormData, startDate: string) {
     includeCampaigns: form.has("includeCampaigns"),
     includeFunnel: form.has("includeFunnel")
   };
+  if (selectedResult !== "auto") config.resultMetric = selectedResult;
+  return config;
 }
 
 export async function POST(request: NextRequest) {
@@ -68,16 +69,13 @@ export async function POST(request: NextRequest) {
     if (!workspace) return NextResponse.redirect(redirectUrl("/setup?error=meta_not_connected"), 303);
 
     const selectedAccounts = await db
-      .select({
-        id: adAccounts.id,
-        currency: adAccounts.currency,
-        timezone: adAccounts.timezone
-      })
+      .select({ id: adAccounts.id, currency: adAccounts.currency, timezone: adAccounts.timezone })
       .from(adAccounts)
       .where(eq(adAccounts.workspaceId, workspace.id));
     const selectedSet = new Set(accountIds);
     const validAccounts = selectedAccounts.filter((account) => selectedSet.has(account.id));
-    if (validAccounts.length === 0) {
+    const primaryAccount = validAccounts[0];
+    if (!primaryAccount) {
       return NextResponse.redirect(redirectUrl("/setup/accounts?error=invalid_accounts"), 303);
     }
 
@@ -106,19 +104,22 @@ export async function POST(request: NextRequest) {
           workspaceId: workspace.id,
           name: projectName,
           slug,
-          timezone: validAccounts[0].timezone ?? "UTC",
-          currency: validAccounts[0].currency
+          timezone: primaryAccount.timezone ?? "UTC",
+          currency: primaryAccount.currency
         })
         .returning({ id: projects.id, name: projects.name });
+      if (!created) throw new Error("Failed to create project");
       project = created;
     }
 
     for (let index = 0; index < validAccounts.length; index += 1) {
+      const account = validAccounts[index];
+      if (!account) continue;
       await db
         .insert(projectAdAccounts)
         .values({
           projectId: project.id,
-          adAccountId: validAccounts[index].id,
+          adAccountId: account.id,
           activeFrom: startDate,
           isPrimary: !existing && index === 0
         })
@@ -148,9 +149,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const metaSummary = await syncMetaData({ projectId: project.id, dateFrom: startDate, fullBackfill: true, force: true });
+    const metaSummary = await syncMetaData({ projectId: project.id, dateFrom: startDate, fullBackfill: true });
     if (existing) {
-      const sheetSummary = await syncGoogleReports({ projectId: project.id, force: true });
+      const sheetSummary = await syncGoogleReports({ projectId: project.id });
       const url = redirectUrl(`/projects/${project.id}`);
       url.searchParams.set("sync", "done");
       url.searchParams.set("meta", String(metaSummary.insights));
