@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
-import { adAccounts, createDatabase, workspaces } from "@zvedeno/database";
+import { adAccounts, createDatabase, projects, workspaces } from "@zvedeno/database";
 
 function defaultStartDate(): string {
   const date = new Date();
@@ -32,16 +32,23 @@ export default async function AccountsSetupPage() {
           .where(eq(adAccounts.workspaceId, workspace.id))
           .orderBy(asc(adAccounts.name))
       : [];
+    const existingProjects = workspace
+      ? await db
+          .select({ id: projects.id, name: projects.name })
+          .from(projects)
+          .where(eq(projects.workspaceId, workspace.id))
+          .orderBy(asc(projects.name))
+      : [];
 
     return (
       <main className="setupMain">
         <Link className="backLink" href="/setup">← До підключень</Link>
         <header className="setupHeader compactHeader">
           <div className="eyebrow">Крок 2</div>
-          <h1>Обери кабінети й створи постійний проєкт.</h1>
+          <h1>Обери кабінети й створи або продовж постійний проєкт.</h1>
           <p>
-            Один проєкт може містити старий, новий і резервний рекламні кабінети. Історія буде
-            обʼєднуватися в одному звіті.
+            Якщо старий кабінет заблокували, обираєш уже існуючий проєкт і додаєш новий кабінет.
+            Старі дані та Google-звіт залишаються на місці.
           </p>
         </header>
 
@@ -53,15 +60,32 @@ export default async function AccountsSetupPage() {
           </section>
         ) : (
           <form className="projectForm" action="/api/projects" method="post">
-            <section className="formSection">
-              <div className="formHeading">
-                <span>Проєкт</span>
-                <h2>Як називається клієнт або напрямок?</h2>
+            <section className="formSection twoColumns">
+              <div>
+                <div className="formHeading">
+                  <span>Продовжити</span>
+                  <h2>Додати кабінет до існуючого проєкту</h2>
+                </div>
+                <label className="fieldLabel">
+                  Існуючий проєкт
+                  <select name="existingProjectId" defaultValue="">
+                    <option value="">Створити новий проєкт</option>
+                    {existingProjects.map((project) => (
+                      <option value={project.id} key={project.id}>{project.name}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
-              <label className="fieldLabel">
-                Назва проєкту
-                <input name="projectName" required placeholder="Наприклад, DMND" />
-              </label>
+              <div>
+                <div className="formHeading">
+                  <span>Новий</span>
+                  <h2>Або створи новий проєкт</h2>
+                </div>
+                <label className="fieldLabel">
+                  Назва нового проєкту
+                  <input name="projectName" placeholder="Наприклад, DMND" />
+                </label>
+              </div>
             </section>
 
             <section className="formSection">
@@ -86,7 +110,7 @@ export default async function AccountsSetupPage() {
               <div>
                 <div className="formHeading">
                   <span>Період</span>
-                  <h2>Звідки тягнути історію?</h2>
+                  <h2>Звідки тягнути історію нового джерела?</h2>
                 </div>
                 <label className="fieldLabel">
                   Початкова дата
@@ -143,7 +167,7 @@ export default async function AccountsSetupPage() {
               </div>
             </section>
 
-            <button className="primaryButton submitButton" type="submit">Створити проєкт і завантажити дані</button>
+            <button className="primaryButton submitButton" type="submit">Зберегти та завантажити дані</button>
           </form>
         )}
       </main>
