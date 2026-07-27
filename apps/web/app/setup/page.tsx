@@ -17,7 +17,8 @@ type SetupPageProps = {
 export default async function SetupPage({ searchParams }: SetupPageProps) {
   const params = await searchParams;
   const missingMetaEnv = requiredMetaEnv.filter((key) => !process.env[key]);
-  const metaReady = missingMetaEnv.length === 0;
+  const oauthReady = missingMetaEnv.length === 0;
+  const systemUserReady = oauthReady && Boolean(process.env.META_SYSTEM_USER_TOKEN);
   const error = typeof params.error === "string" ? params.error : undefined;
   const connected = params.meta === "connected";
   const connectedCount = typeof params.accounts === "string" ? params.accounts : undefined;
@@ -48,10 +49,16 @@ export default async function SetupPage({ searchParams }: SetupPageProps) {
           </p>
 
           {error === "meta_not_configured" && (
-            <div className="errorNotice">Meta OAuth ще не налаштований у локальному .env.</div>
+            <div className="errorNotice">Meta App ще не налаштований у локальному файлі .env.</div>
+          )}
+          {error === "meta_system_user_not_configured" && (
+            <div className="errorNotice">System User token або ключі Meta відсутні у .env.</div>
+          )}
+          {error === "meta_system_user_failed" && (
+            <div className="errorNotice">System User token не пройшов перевірку. Деталі дивись у Terminal.</div>
           )}
           {error === "meta_oauth_failed" && (
-            <div className="errorNotice">Meta не завершила авторизацію. Деталі дивись у Terminal.</div>
+            <div className="errorNotice">Meta не завершила авторизацію або не видала довгостроковий токен. Деталі дивись у Terminal.</div>
           )}
           {connected && (
             <div className="successNotice">
@@ -65,23 +72,36 @@ export default async function SetupPage({ searchParams }: SetupPageProps) {
             <div className="setupIndex">1</div>
             <div className="setupCopy">
               <h2>Підключити або оновити Meta</h2>
-              <p>Авторизація, отримання доступних рекламних кабінетів і збереження підключення.</p>
-              {!metaReady && (
+              <p>Ці значення не вводяться на сторінці. Власник сервісу один раз записує їх у файл <code>.env</code>.</p>
+              {!oauthReady && (
                 <div className="configNotice">
-                  Спершу треба створити Meta App і заповнити змінні:
+                  Відкрий <code>~/Desktop/zvedeno/.env</code> і заповни:
                   <ul className="missingList">
                     {missingMetaEnv.map((key) => <li key={key}>{key}</li>)}
                   </ul>
+                  Для постійного підключення також додай <code>META_SYSTEM_USER_TOKEN</code>.
+                </div>
+              )}
+              {oauthReady && !systemUserReady && (
+                <div className="configNotice">
+                  OAuth готовий. Він автоматично обмінює короткий токен на довгостроковий. Для підключення без регулярної повторної авторизації додай у <code>.env</code> постійний <code>META_SYSTEM_USER_TOKEN</code>.
                 </div>
               )}
             </div>
-            {metaReady ? (
-              <Link className="primaryButton" href="/api/integrations/meta/connect">
-                {hasAccounts ? "Оновити доступ Meta" : "Підключити Meta"}
-              </Link>
-            ) : (
-              <span className="disabledButton" aria-disabled="true">Потрібні ключі Meta</span>
-            )}
+            <div className="setupActions">
+              {systemUserReady && (
+                <Link className="primaryButton" href="/api/integrations/meta/system-user/connect">
+                  Підключити System User
+                </Link>
+              )}
+              {oauthReady ? (
+                <Link className={systemUserReady ? "secondaryButton" : "primaryButton"} href="/api/integrations/meta/connect">
+                  {hasAccounts ? "Оновити через Facebook" : "Підключити через Facebook"}
+                </Link>
+              ) : (
+                <span className="disabledButton" aria-disabled="true">Потрібні ключі Meta</span>
+              )}
+            </div>
           </article>
 
           <article className={`setupCard ${hasAccounts ? "" : "isLocked"}`}>
