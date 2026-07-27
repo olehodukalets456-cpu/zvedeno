@@ -283,6 +283,12 @@ export async function syncMetaData(options: MetaSyncOptions = {}): Promise<MetaS
         })
         .returning({ id: syncRuns.id });
 
+      if (!run) {
+        summary.errors += 1;
+        console.error("Could not create Meta sync run", pair.externalAccountId);
+        continue;
+      }
+
       try {
         const config = await loadRecipeConfig(db, pair.projectId);
         const today = options.dateTo ?? isoDate();
@@ -329,6 +335,7 @@ export async function syncMetaData(options: MetaSyncOptions = {}): Promise<MetaS
               }
             })
             .returning({ id: campaigns.id });
+          if (!saved) throw new Error(`Failed to save Meta campaign ${campaign.id}`);
           campaignMap.set(campaign.id, saved.id);
         }
 
@@ -363,6 +370,7 @@ export async function syncMetaData(options: MetaSyncOptions = {}): Promise<MetaS
               }
             })
             .returning({ id: adSets.id });
+          if (!saved) throw new Error(`Failed to save Meta ad set ${adSet.id}`);
           adSetMap.set(adSet.id, saved.id);
         }
 
@@ -404,6 +412,7 @@ export async function syncMetaData(options: MetaSyncOptions = {}): Promise<MetaS
               }
             })
             .returning({ id: ads.id });
+          if (!savedAd) throw new Error(`Failed to save Meta ad ${ad.id}`);
 
           const [asset] = await db
             .insert(mediaAssets)
@@ -430,6 +439,7 @@ export async function syncMetaData(options: MetaSyncOptions = {}): Promise<MetaS
               }
             })
             .returning({ id: mediaAssets.id });
+          if (!asset) throw new Error(`Failed to save media asset for ad ${ad.id}`);
 
           await db
             .insert(adMediaAssets)
