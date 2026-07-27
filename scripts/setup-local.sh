@@ -20,17 +20,29 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-if command -v corepack >/dev/null 2>&1; then
-  corepack enable
-  corepack prepare pnpm@9.15.9 --activate
-elif ! command -v pnpm >/dev/null 2>&1; then
-  echo "Corepack and pnpm are unavailable. Install pnpm 9.15.9, then run this script again."
-  exit 1
+if ! command -v pnpm >/dev/null 2>&1; then
+  if command -v corepack >/dev/null 2>&1; then
+    echo "pnpm is missing. Enabling it through Corepack..."
+    if ! corepack enable 2>/dev/null; then
+      echo "Corepack needs administrator permission once. Run: sudo corepack enable"
+      exit 1
+    fi
+    corepack prepare pnpm@9.15.9 --activate
+  else
+    echo "Corepack and pnpm are unavailable. Install pnpm 9.15.9, then run this script again."
+    exit 1
+  fi
 fi
 
 if [ ! -f .env ]; then
   cp .env.example .env
   echo "Created .env from .env.example"
+fi
+
+if [ -z "${TOKEN_ENCRYPTION_KEY:-}" ] && ! grep -Eq '^TOKEN_ENCRYPTION_KEY=.{20,}$' .env; then
+  KEY="$(openssl rand -hex 32)"
+  perl -0pi -e "s/^TOKEN_ENCRYPTION_KEY=.*$/TOKEN_ENCRYPTION_KEY=$KEY/m" .env
+  echo "Generated TOKEN_ENCRYPTION_KEY in .env"
 fi
 
 echo "Starting PostgreSQL..."
@@ -46,9 +58,7 @@ echo "Applying database migration..."
 pnpm db:migrate
 
 echo
-
 echo "Local setup is ready. Start Zvedeno with:"
 echo "  pnpm dev"
 echo
-
 echo "Then open http://localhost:3000"
