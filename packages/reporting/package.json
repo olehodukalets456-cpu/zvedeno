@@ -13,6 +13,7 @@
     "@zvedeno/shared": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^22.19.0",
     "typescript": "5.9.2"
   }
 }
