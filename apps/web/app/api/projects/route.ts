@@ -8,7 +8,7 @@ import {
   reportRecipes,
   workspaces
 } from "@zvedeno/database";
-import { syncGoogleReports, syncMetaData } from "@zvedeno/sync-engine";
+import { refreshCreativeWeeklySnapshots, syncGoogleReports, syncMetaData } from "@zvedeno/sync-engine";
 
 function slugify(value: string): string {
   const base = value
@@ -41,7 +41,8 @@ function recipeConfig(form: FormData, startDate: string): Record<string, unknown
     includeDaily: form.has("includeDaily"),
     includeCreatives: form.has("includeCreatives"),
     includeCampaigns: form.has("includeCampaigns"),
-    includeFunnel: form.has("includeFunnel")
+    includeFunnel: form.has("includeFunnel"),
+    includeCreativeWeekly: form.has("includeCreativeWeekly") || form.has("includeCreatives")
   };
   if (selectedResult !== "auto") config.resultMetric = selectedResult;
   return config;
@@ -150,6 +151,7 @@ export async function POST(request: NextRequest) {
     }
 
     const metaSummary = await syncMetaData({ projectId: project.id, dateFrom: startDate, fullBackfill: true });
+    await refreshCreativeWeeklySnapshots({ projectId: project.id });
     if (existing) {
       const sheetSummary = await syncGoogleReports({ projectId: project.id });
       const url = redirectUrl(`/projects/${project.id}`);
