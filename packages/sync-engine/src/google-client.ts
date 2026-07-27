@@ -8,10 +8,67 @@ type GoogleTokenResponse = {
   scope?: string;
 };
 
-type GoogleSpreadsheet = {
+export type GoogleSpreadsheet = {
   spreadsheetId: string;
   spreadsheetUrl: string;
   sheets?: Array<{ properties?: { sheetId?: number; title?: string } }>;
+};
+
+export const GOOGLE_REPORT_TABS = [
+  "Dashboard",
+  "Weekly Summary",
+  "Campaigns",
+  "Daily",
+  "Creatives",
+  "Creative Weekly",
+  "Manual Input",
+  "Funnel",
+  "Sync Status",
+  "Raw Data"
+] as const;
+
+const REPORT_HEADERS: Record<string, string[]> = {
+  Dashboard: ["Metric", "Value", "Updated at"],
+  "Weekly Summary": [
+    "__key",
+    "Week",
+    "Spend",
+    "Impressions",
+    "Clicks",
+    "Meta results",
+    "Meta CPL",
+    "Manual metric",
+    "Manual value",
+    "Final CPA",
+    "Meta → manual CR, %",
+    "Status",
+    "Comment"
+  ],
+  Campaigns: ["__key", "Campaign", "Account", "Spend", "Impressions", "Clicks", "Results", "CPA", "CTR", "CPC", "Status", "Comment"],
+  Daily: ["__key", "Date", "Account", "Campaign", "Ad set", "Ad", "Creative", "Spend", "Impressions", "Clicks", "Results", "CPA", "CTR", "CPC", "Status", "Comment"],
+  Creatives: ["__key", "Preview", "Creative", "Format", "Accounts", "Spend", "Impressions", "Clicks", "Results", "CPA", "CTR", "CPC", "First seen", "Last seen", "Status", "Comment"],
+  "Creative Weekly": [
+    "__key",
+    "Preview",
+    "Week",
+    "Creative",
+    "Format",
+    "Accounts",
+    "Spend",
+    "Impressions",
+    "Clicks",
+    "Meta results",
+    "Meta CPL",
+    "Manual result",
+    "Final CPA",
+    "Meta → manual CR, %",
+    "Status",
+    "Comment"
+  ],
+  "Manual Input": ["__key", "Period start", "Period end", "Scope", "Entity", "Metric", "Value", "Note"],
+  Funnel: ["Stage", "Value", "Conversion", "Cost"],
+  "Sync Status": ["Source", "Status", "Last successful sync", "Rows", "Error"],
+  "Raw Data": ["__key", "Date", "Account ID", "Campaign ID", "Ad set ID", "Ad ID", "Creative ID", "Metrics JSON"]
 };
 
 async function readJson<T>(response: Response, label: string): Promise<T> {
@@ -48,7 +105,7 @@ export async function refreshGoogleAccessToken(encryptedRefreshToken: string): P
 export async function createGoogleSpreadsheet(
   accessToken: string,
   title: string,
-  tabs: string[]
+  tabs: readonly string[]
 ): Promise<GoogleSpreadsheet> {
   const response = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
     method: "POST",
@@ -62,13 +119,22 @@ export async function createGoogleSpreadsheet(
         properties: {
           title: tab,
           index,
-          gridProperties: { frozenRowCount: 1, rowCount: 2000, columnCount: 30 }
+          gridProperties: { frozenRowCount: 1, rowCount: 5000, columnCount: 30 }
         }
       }))
     })
   });
 
   return readJson<GoogleSpreadsheet>(response, "Google spreadsheet creation");
+}
+
+export async function getGoogleSpreadsheet(accessToken: string, spreadsheetId: string): Promise<GoogleSpreadsheet> {
+  const url = new URL(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`);
+  url.searchParams.set("fields", "spreadsheetId,spreadsheetUrl,sheets.properties(sheetId,title)");
+  return readJson<GoogleSpreadsheet>(
+    await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } }),
+    "Google spreadsheet metadata"
+  );
 }
 
 export async function googleSheetsBatchUpdate(
@@ -133,6 +199,35 @@ export async function googleValuesAppend(
   ).then((payload) => ({ updatedRange: payload.updates?.updatedRange }));
 }
 
+export async function ensureGoogleReportTabs(
+  accessToken: string,
+  spreadsheetId: string,
+  tabs: readonly string[] = GOOGLE_REPORT_TABS
+): Promise<GoogleSpreadsheet> {
+  let spreadsheet = await getGoogleSpreadsheet(accessToken, spreadsheetId);
+  const existing = new Set((spreadsheet.sheets ?? []).map((sheet) => sheet.properties?.title).filter(Boolean));
+  const missing = tabs.filter((tab) => !existing.has(tab));
+
+  if (missing.length > 0) {
+    await googleSheetsBatchUpdate(
+      accessToken,
+      spreadsheetId,
+      missing.map((title) => ({
+        addSheet: {
+          properties: {
+            title,
+            gridProperties: { frozenRowCount: 1, rowCount: 5000, columnCount: 30 }
+          }
+        }
+      }))
+    );
+    spreadsheet = await getGoogleSpreadsheet(accessToken, spreadsheetId);
+  }
+
+  await initializeGoogleReport(accessToken, spreadsheet);
+  return spreadsheet;
+}
+
 export async function initializeGoogleReport(
   accessToken: string,
   spreadsheet: GoogleSpreadsheet
@@ -144,20 +239,12 @@ export async function initializeGoogleReport(
     if (title && id !== undefined) titleToId.set(title, id);
   }
 
-  const headers: Record<string, string[]> = {
-    Dashboard: ["Metric", "Value", "Updated at"],
-    Campaigns: ["__key", "Campaign", "Account", "Spend", "Impressions", "Clicks", "Results", "CPA", "CTR", "CPC", "Status", "Comment"],
-    Daily: ["__key", "Date", "Account", "Campaign", "Ad set", "Ad", "Creative", "Spend", "Impressions", "Clicks", "Results", "CPA", "CTR", "CPC", "Status", "Comment"],
-    Creatives: ["__key", "Preview", "Creative", "Format", "Accounts", "Spend", "Impressions", "Clicks", "Results", "CPA", "CTR", "CPC", "First seen", "Last seen", "Status", "Comment"],
-    Funnel: ["Stage", "Value", "Conversion", "Cost"],
-    "Sync Status": ["Source", "Status", "Last successful sync", "Rows", "Error"],
-    "Raw Data": ["__key", "Date", "Account ID", "Campaign ID", "Ad set ID", "Ad ID", "Creative ID", "Metrics JSON"]
-  };
-
   await googleValuesBatchUpdate(
     accessToken,
     spreadsheet.spreadsheetId,
-    Object.entries(headers).map(([tab, values]) => ({ range: `'${tab}'!A1`, values: [values] }))
+    Object.entries(REPORT_HEADERS)
+      .filter(([tab]) => titleToId.has(tab))
+      .map(([tab, values]) => ({ range: `'${tab}'!A1`, values: [values] }))
   );
 
   const requests: unknown[] = [];
@@ -180,12 +267,28 @@ export async function initializeGoogleReport(
         filter: { range: { sheetId, startRowIndex: 0, startColumnIndex: 0 } }
       }
     });
-    if (["Campaigns", "Daily", "Creatives", "Raw Data"].includes(title)) {
+    if (["Weekly Summary", "Campaigns", "Daily", "Creatives", "Creative Weekly", "Manual Input", "Raw Data"].includes(title)) {
       requests.push({
         updateDimensionProperties: {
           range: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: 1 },
           properties: { hiddenByUser: true },
           fields: "hiddenByUser"
+        }
+      });
+    }
+    if (["Creatives", "Creative Weekly"].includes(title)) {
+      requests.push({
+        updateDimensionProperties: {
+          range: { sheetId, dimension: "ROWS", startIndex: 1 },
+          properties: { pixelSize: 128 },
+          fields: "pixelSize"
+        }
+      });
+      requests.push({
+        updateDimensionProperties: {
+          range: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: 2 },
+          properties: { pixelSize: 130 },
+          fields: "pixelSize"
         }
       });
     }
