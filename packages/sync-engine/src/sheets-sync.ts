@@ -168,12 +168,14 @@ async function syncManagedRows(input: {
     const startRow = parseUpdatedRangeStartRow(result.updatedRange);
     if (startRow) {
       for (let index = 0; index < appendRows.length; index += 1) {
+        const row = appendRows[index];
+        if (!row) continue;
         await db
           .insert(sheetRowMappings)
           .values({
             googleReportId: reportId,
             tabName: tab,
-            stableRowKey: appendRows[index].key,
+            stableRowKey: row.key,
             rowNumber: startRow + index,
             sourceUpdatedAt: new Date()
           })
@@ -256,10 +258,10 @@ export async function syncGoogleReports(options: SheetsSyncOptions = {}): Promis
         const creativeAggregates = new Map<string, {
           name: string;
           type: string;
-          thumbnail?: string;
+          thumbnail: string | undefined;
           accounts: Set<string>;
-          firstSeen?: Date | null;
-          lastSeen?: Date | null;
+          firstSeen: Date | null | undefined;
+          lastSeen: Date | null | undefined;
           aggregate: Aggregate;
         }>();
         const total: Aggregate = { spend: 0, impressions: 0, clicks: 0, results: 0 };
