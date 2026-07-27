@@ -142,7 +142,7 @@ export default async function AccountsSetupPage() {
                   </select>
                 </label>
                 <label className="fieldLabel">
-                  Основний результат
+                  Основний результат Meta
                   <select name="resultMetric" defaultValue="auto">
                     <option value="auto">Визначати автоматично</option>
                     <option value="action.lead">Ліди</option>
@@ -161,7 +161,8 @@ export default async function AccountsSetupPage() {
               </div>
               <div className="toggleGrid">
                 <label><input type="checkbox" name="includeDaily" defaultChecked /> Дані по днях</label>
-                <label><input type="checkbox" name="includeCreatives" defaultChecked /> Креативи</label>
+                <label><input type="checkbox" name="includeCreatives" defaultChecked /> Загальна статистика креативів</label>
+                <label><input type="checkbox" name="includeCreativeWeekly" defaultChecked /> Щотижневий review креативів</label>
                 <label><input type="checkbox" name="includeCampaigns" defaultChecked /> Кампанії</label>
                 <label><input type="checkbox" name="includeFunnel" defaultChecked /> Воронка</label>
               </div>
