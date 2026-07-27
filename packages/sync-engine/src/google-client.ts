@@ -180,8 +180,8 @@ export async function googleValuesAppend(
   spreadsheetId: string,
   range: string,
   values: Array<Array<string | number | boolean | null>>
-): Promise<{ updatedRange?: string }> {
-  if (values.length === 0) return {};
+): Promise<{ updatedRange: string | undefined }> {
+  if (values.length === 0) return { updatedRange: undefined };
   const url = new URL(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:append`);
   url.searchParams.set("valueInputOption", "USER_ENTERED");
   url.searchParams.set("insertDataOption", "INSERT_ROWS");
