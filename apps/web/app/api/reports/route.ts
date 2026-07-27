@@ -9,12 +9,11 @@ import {
 } from "@zvedeno/database";
 import {
   createGoogleSpreadsheet,
+  GOOGLE_REPORT_TABS,
   initializeGoogleReport,
   refreshGoogleAccessToken,
   syncGoogleReports
 } from "@zvedeno/sync-engine";
-
-const REPORT_TABS = ["Dashboard", "Campaigns", "Daily", "Creatives", "Funnel", "Sync Status", "Raw Data"];
 
 function appUrl(path: string): URL {
   return new URL(path, process.env.APP_URL ?? "http://localhost:3000");
@@ -58,7 +57,7 @@ export async function POST(request: NextRequest) {
     const spreadsheet = await createGoogleSpreadsheet(
       accessToken,
       requestedTitle || `${project.name} dashboard`,
-      REPORT_TABS
+      GOOGLE_REPORT_TABS
     );
     await initializeGoogleReport(accessToken, spreadsheet);
 
