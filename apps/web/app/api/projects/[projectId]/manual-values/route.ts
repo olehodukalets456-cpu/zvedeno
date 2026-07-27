@@ -6,7 +6,7 @@ import {
   manualMetricValues,
   projects
 } from "@zvedeno/database";
-import { syncGoogleReports } from "@zvedeno/sync-engine";
+import { syncManualWeeklyReports } from "@zvedeno/sync-engine";
 
 function projectUrl(projectId: string): URL {
   return new URL(`/projects/${projectId}`, process.env.APP_URL ?? "http://localhost:3000");
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pr
         }
       });
 
-    await syncGoogleReports({ projectId: project.id });
+    await syncManualWeeklyReports({ projectId: project.id });
     const url = projectUrl(project.id);
     url.searchParams.set("manualValue", "saved");
     return NextResponse.redirect(url, 303);
