@@ -12,7 +12,8 @@ import {
   GOOGLE_REPORT_TABS,
   initializeGoogleReport,
   refreshGoogleAccessToken,
-  syncGoogleReports
+  syncGoogleReports,
+  syncManualWeeklyReports
 } from "@zvedeno/sync-engine";
 
 function appUrl(path: string): URL {
@@ -75,10 +76,11 @@ export async function POST(request: NextRequest) {
     if (!report) throw new Error("Failed to save Google report");
 
     const summary = await syncGoogleReports({ reportId: report.id });
+    const manualWeekly = await syncManualWeeklyReports({ reportId: report.id });
     const url = appUrl(`/projects/${project.id}`);
     url.searchParams.set("report", "created");
-    url.searchParams.set("appended", String(summary.appended));
-    url.searchParams.set("errors", String(summary.errors));
+    url.searchParams.set("appended", String(summary.appended + manualWeekly.appended));
+    url.searchParams.set("errors", String(summary.errors + manualWeekly.errors));
     return NextResponse.redirect(url, 303);
   } catch (error) {
     console.error("Report creation failed", error);
