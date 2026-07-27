@@ -1,0 +1,24 @@
+{
+  "name": "@zvedeno/sync-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@zvedeno/classification": "workspace:*",
+    "@zvedeno/database": "workspace:*",
+    "@zvedeno/meta-api": "workspace:*",
+    "@zvedeno/shared": "workspace:*",
+    "drizzle-orm": "0.45.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "typescript": "5.9.2"
+  }
+}
