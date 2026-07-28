@@ -18,6 +18,11 @@
     "db:migrate": "pnpm --filter @zvedeno/database db:migrate",
     "db:studio": "pnpm --filter @zvedeno/database db:studio"
   },
+  "dependencies": {
+    "next": "16.2.10",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
   "devDependencies": {
     "typescript": "5.9.2"
   }
