@@ -5,7 +5,7 @@
   "description": "Persistent client-ready Meta Ads reporting to Google Sheets.",
   "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "pnpm --parallel --filter @zvedeno/web --filter @zvedeno/worker dev",
