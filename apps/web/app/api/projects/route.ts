@@ -28,28 +28,48 @@ function redirectUrl(path: string): URL {
   return new URL(path, process.env.APP_URL ?? "http://localhost:3000");
 }
 
+function parseDirectionRules(form: FormData): Array<{ key: string; resultLabel: string }> {
+  const raw = String(form.get("directionRules") ?? "");
+  const seen = new Set<string>();
+  const result: Array<{ key: string; resultLabel: string }> = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const [rawKey, ...labelParts] = line.split(":");
+    const key = String(rawKey ?? "").trim().toLocaleUpperCase("uk-UA");
+    if (!key || seen.has(key)) continue;
+    const resultLabel = labelParts.join(":").trim() || "Фактичний результат";
+    seen.add(key);
+    result.push({ key, resultLabel });
+  }
+  return result;
+}
+
 function recipeConfig(form: FormData, startDate: string): Record<string, unknown> {
   const lookbackDays = Number(form.get("lookbackDays") ?? 28);
   const refreshMinutes = Number(form.get("refreshMinutes") ?? 60);
   const selectedResult = String(form.get("resultMetric") ?? "auto");
+  const directions = parseDirectionRules(form);
   const config: Record<string, unknown> = {
     startDate,
     lookbackDays: Number.isFinite(lookbackDays) ? lookbackDays : 28,
     refreshMinutes: Number.isFinite(refreshMinutes) ? refreshMinutes : 60,
     resultLabel: selectedResult === "action.messaging_conversation_started_7d"
-      ? "Conversations"
+      ? "Переписки"
       : selectedResult === "action.omni_purchase"
-        ? "Purchases"
+        ? "Покупки"
         : selectedResult === "action.link_click"
-          ? "Clicks"
-          : "Results",
-    includeDaily: form.has("includeDaily"),
-    includeCreatives: form.has("includeCreatives"),
-    includeCampaigns: form.has("includeCampaigns"),
-    includeFunnel: form.has("includeFunnel"),
-    includeCreativeWeekly: form.has("includeCreativeWeekly") || form.has("includeCreatives")
+          ? "Кліки"
+          : "Meta результат",
+    directionReportV2: true,
+    directionMode: "campaign_first_word",
+    includeDaily: false,
+    includeCreatives: true,
+    includeCampaigns: false,
+    includeFunnel: false,
+    includeCreativeWeekly: true,
+    hideLegacyTabs: true
   };
   if (selectedResult !== "auto") config.resultMetric = selectedResult;
+  if (directions.length > 0) config.directions = directions;
   return config;
 }
 
