@@ -45,10 +45,9 @@ export default async function AccountsSetupPage() {
         <Link className="backLink" href="/setup">← До підключень</Link>
         <header className="setupHeader compactHeader">
           <div className="eyebrow">Крок 2</div>
-          <h1>Обери кабінети й створи або продовж постійний проєкт.</h1>
+          <h1>Обери кабінети, напрямки й фактичний результат.</h1>
           <p>
-            Якщо старий кабінет заблокували, обираєш уже існуючий проєкт і додаєш новий кабінет.
-            Старі дані та Google-звіт залишаються на місці.
+            Кабінети можна міняти й додавати пізніше. Історія проєкту та Google-звіт не стираються.
           </p>
         </header>
 
@@ -156,16 +155,33 @@ export default async function AccountsSetupPage() {
 
             <section className="formSection">
               <div className="formHeading">
+                <span>Напрямки</span>
+                <h2>Які окремі вкладки створити?</h2>
+              </div>
+              <p>
+                Сервіс бере перше слово з назви кампанії. Кожен рядок нижче: <strong>КЛЮЧ:Фактичний результат</strong>.
+                Для існуючого проєкту поле можна лишити порожнім, якщо правила не змінюються.
+              </p>
+              <label className="fieldLabel">
+                Напрямки та результат
+                <textarea
+                  name="directionRules"
+                  rows={5}
+                  placeholder={"JOB:Ліди\nDMND:Підписки"}
+                />
+              </label>
+            </section>
+
+            <section className="formSection">
+              <div className="formHeading">
                 <span>Структура</span>
-                <h2>Що додати у звіт?</h2>
+                <h2>Звіт формується автоматично</h2>
               </div>
-              <div className="toggleGrid">
-                <label><input type="checkbox" name="includeDaily" defaultChecked /> Дані по днях</label>
-                <label><input type="checkbox" name="includeCreatives" defaultChecked /> Загальна статистика креативів</label>
-                <label><input type="checkbox" name="includeCreativeWeekly" defaultChecked /> Щотижневий review креативів</label>
-                <label><input type="checkbox" name="includeCampaigns" defaultChecked /> Кампанії</label>
-                <label><input type="checkbox" name="includeFunnel" defaultChecked /> Воронка</label>
-              </div>
+              <p>
+                Видимими будуть Dashboard і вкладки напрямків. У кожній — тижневе порівняння креативів,
+                дата запуску й стопу, спенд, покази, кліки, Meta-результат і поле для фактичного результату.
+                Технічні дані зберігаються в прихованих вкладках.
+              </p>
             </section>
 
             <button className="primaryButton submitButton" type="submit">Зберегти та завантажити дані</button>
