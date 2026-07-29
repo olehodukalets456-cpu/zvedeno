@@ -49,16 +49,28 @@ export default async function SetupPage({ searchParams }: SetupPageProps) {
           </p>
 
           {error === "meta_not_configured" && (
-            <div className="errorNotice">Meta App ще не налаштований у локальному файлі .env.</div>
+            <div className="errorNotice">У Vercel відсутні обов’язкові ключі Meta.</div>
           )}
           {error === "meta_system_user_not_configured" && (
-            <div className="errorNotice">System User token або ключі Meta відсутні у .env.</div>
+            <div className="errorNotice">System User token або ключі Meta відсутні у Vercel.</div>
           )}
           {error === "meta_system_user_failed" && (
-            <div className="errorNotice">System User token не пройшов перевірку. Деталі дивись у Terminal.</div>
+            <div className="errorNotice">System User token не пройшов перевірку. Деталі є у Vercel Logs.</div>
+          )}
+          {error === "meta_oauth_denied" && (
+            <div className="errorNotice">Авторизацію Meta скасовано або доступ не підтверджено.</div>
+          )}
+          {error === "meta_oauth_invalid_response" && (
+            <div className="errorNotice">Meta повернула неповну OAuth-відповідь. Запусти підключення ще раз.</div>
+          )}
+          {error === "meta_oauth_state_mismatch" && (
+            <div className="errorNotice">Сесія авторизації застаріла. Натисни підключення один раз і заверши його в цій самій вкладці.</div>
+          )}
+          {error === "meta_token_exchange_failed" && (
+            <div className="errorNotice">Meta не дозволила отримати або перевірити довгостроковий токен. Точна причина записана у Vercel Logs.</div>
           )}
           {error === "meta_oauth_failed" && (
-            <div className="errorNotice">Meta не завершила авторизацію або не видала довгостроковий токен. Деталі дивись у Terminal.</div>
+            <div className="errorNotice">Meta не завершила авторизацію. Запусти підключення ще раз одним кліком.</div>
           )}
           {connected && (
             <div className="successNotice">
@@ -72,19 +84,18 @@ export default async function SetupPage({ searchParams }: SetupPageProps) {
             <div className="setupIndex">1</div>
             <div className="setupCopy">
               <h2>Підключити або оновити Meta</h2>
-              <p>Ці значення не вводяться на сторінці. Власник сервісу один раз записує їх у файл <code>.env</code>.</p>
+              <p>Ключі застосунку зберігаються у Vercel, а отриманий токен — зашифровано в базі.</p>
               {!oauthReady && (
                 <div className="configNotice">
-                  Відкрий <code>~/Desktop/zvedeno/.env</code> і заповни:
+                  Додай у Vercel Environment Variables:
                   <ul className="missingList">
                     {missingMetaEnv.map((key) => <li key={key}>{key}</li>)}
                   </ul>
-                  Для постійного підключення також додай <code>META_SYSTEM_USER_TOKEN</code>.
                 </div>
               )}
               {oauthReady && !systemUserReady && (
                 <div className="configNotice">
-                  OAuth готовий. Він автоматично обмінює короткий токен на довгостроковий. Для підключення без регулярної повторної авторизації додай у <code>.env</code> постійний <code>META_SYSTEM_USER_TOKEN</code>.
+                  OAuth готовий. Він бачить рекламні кабінети з різних БМ, до яких має доступ твій Facebook-профіль, і зберігає довгостроковий user token. Абсолютно постійний токен можливий лише через System User та призначені йому бізнес-активи.
                 </div>
               )}
             </div>
