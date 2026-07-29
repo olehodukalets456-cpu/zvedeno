@@ -4,6 +4,7 @@
     "jsx": "preserve",
     "noEmit": true,
     "incremental": true,
+    "exactOptionalPropertyTypes": false,
     "plugins": [{ "name": "next" }]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
