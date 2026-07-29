@@ -1,4 +1,4 @@
-export * from "./direction-report";
+export * from "./direction-report-by-name";
 export * from "./direction-reports-sync";
 export * from "./google-client";
 export * from "./manual-weekly-report-sync";
