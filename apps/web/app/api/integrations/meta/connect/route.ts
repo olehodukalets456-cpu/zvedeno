@@ -31,7 +31,13 @@ export async function GET(request: NextRequest) {
   authorizationUrl.searchParams.set("redirect_uri", process.env.META_REDIRECT_URI!);
   authorizationUrl.searchParams.set("state", state);
   authorizationUrl.searchParams.set("response_type", "code");
-  authorizationUrl.searchParams.set("scope", "ads_read,business_management");
+
+  const configurationId = process.env.META_LOGIN_CONFIG_ID?.trim();
+  if (configurationId) {
+    authorizationUrl.searchParams.set("config_id", configurationId);
+  } else {
+    authorizationUrl.searchParams.set("scope", "ads_read,business_management");
+  }
 
   const response = NextResponse.redirect(authorizationUrl);
   response.cookies.set(oauthStateCookie, acceptedStates.join(","), {
