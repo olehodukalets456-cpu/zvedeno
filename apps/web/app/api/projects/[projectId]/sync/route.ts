@@ -10,8 +10,7 @@ function projectUrl(projectId: string): URL {
   return new URL(`/projects/${projectId}`, process.env.APP_URL ?? "http://localhost:3000");
 }
 
-export async function POST(_request: NextRequest, context: { params: Promise<{ projectId: string }> }) {
-  const { projectId } = await context.params;
+async function runProjectSync(projectId: string) {
   try {
     const meta = await syncMetaData({ projectId });
     const weekly = await refreshCreativeWeeklySnapshots({ projectId });
@@ -24,6 +23,7 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ p
     url.searchParams.set("sheets", String(
       sheets.appended + sheets.updated + manualWeekly.appended + manualWeekly.updated
     ));
+    url.searchParams.set("errors", String(meta.errors + sheets.errors + manualWeekly.errors));
     return NextResponse.redirect(url, 303);
   } catch (error) {
     console.error("Manual project sync failed", error);
@@ -31,4 +31,14 @@ export async function POST(_request: NextRequest, context: { params: Promise<{ p
     url.searchParams.set("error", "sync_failed");
     return NextResponse.redirect(url, 303);
   }
+}
+
+export async function POST(_request: NextRequest, context: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await context.params;
+  return runProjectSync(projectId);
+}
+
+export async function GET(_request: NextRequest, context: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await context.params;
+  return runProjectSync(projectId);
 }
