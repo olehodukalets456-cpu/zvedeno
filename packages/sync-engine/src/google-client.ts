@@ -8,6 +8,10 @@ type GoogleTokenResponse = {
   scope?: string;
 };
 
+type DriveFileResponse = {
+  id: string;
+};
+
 export type GoogleSpreadsheet = {
   spreadsheetId: string;
   spreadsheetUrl: string;
@@ -16,59 +20,14 @@ export type GoogleSpreadsheet = {
 
 export const GOOGLE_REPORT_TABS = [
   "Dashboard",
-  "Weekly Summary",
-  "Campaigns",
-  "Daily",
-  "Creatives",
-  "Creative Weekly",
-  "Manual Input",
-  "Funnel",
   "Sync Status",
   "Raw Data"
 ] as const;
 
 const REPORT_HEADERS: Record<string, string[]> = {
-  Dashboard: ["Metric", "Value", "Updated at"],
-  "Weekly Summary": [
-    "__key",
-    "Week",
-    "Spend",
-    "Impressions",
-    "Clicks",
-    "Meta results",
-    "Meta CPL",
-    "Manual metric",
-    "Manual value",
-    "Final CPA",
-    "Meta → manual CR, %",
-    "Status",
-    "Comment"
-  ],
-  Campaigns: ["__key", "Campaign", "Account", "Spend", "Impressions", "Clicks", "Results", "CPA", "CTR", "CPC", "Status", "Comment"],
-  Daily: ["__key", "Date", "Account", "Campaign", "Ad set", "Ad", "Creative", "Spend", "Impressions", "Clicks", "Results", "CPA", "CTR", "CPC", "Status", "Comment"],
-  Creatives: ["__key", "Preview", "Creative", "Format", "Accounts", "Spend", "Impressions", "Clicks", "Results", "CPA", "CTR", "CPC", "First seen", "Last seen", "Status", "Comment"],
-  "Creative Weekly": [
-    "__key",
-    "Preview",
-    "Week",
-    "Creative",
-    "Format",
-    "Accounts",
-    "Spend",
-    "Impressions",
-    "Clicks",
-    "Meta results",
-    "Meta CPL",
-    "Manual result",
-    "Final CPA",
-    "Meta → manual CR, %",
-    "Status",
-    "Comment"
-  ],
-  "Manual Input": ["__key", "Period start", "Period end", "Scope", "Entity", "Metric", "Value", "Note"],
-  Funnel: ["Stage", "Value", "Conversion", "Cost"],
+  Dashboard: ["Напрямок", "Спенд", "Meta результат", "Фактичний результат", "Фактична ціна", "Оновлено"],
   "Sync Status": ["Source", "Status", "Last successful sync", "Rows", "Error"],
-  "Raw Data": ["__key", "Date", "Account ID", "Campaign ID", "Ad set ID", "Ad ID", "Creative ID", "Metrics JSON"]
+  "Raw Data": ["__key", "Date", "Account ID", "Campaign ID", "Ad ID", "Creative ID", "Direction", "Metrics JSON"]
 };
 
 async function readJson<T>(response: Response, label: string): Promise<T> {
@@ -100,6 +59,72 @@ export async function refreshGoogleAccessToken(encryptedRefreshToken: string): P
     "Google token refresh"
   );
   return token.access_token;
+}
+
+function driveFileName(value: string, contentType: string): string {
+  const base = value
+    .replace(/[^a-z0-9а-яіїєґ._-]+/giu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || `creative-${Date.now()}`;
+  if (/\.[a-z0-9]{2,5}$/i.test(base)) return base;
+  const extension = contentType.includes("png")
+    ? "png"
+    : contentType.includes("webp")
+      ? "webp"
+      : contentType.includes("gif")
+        ? "gif"
+        : "jpg";
+  return `${base}.${extension}`;
+}
+
+export async function archiveRemoteImageToDrive(
+  accessToken: string,
+  sourceUrl: string,
+  fileName: string
+): Promise<string> {
+  const source = await fetch(sourceUrl, { headers: { Accept: "image/*" } });
+  if (!source.ok) throw new Error(`Creative image download failed with status ${source.status}`);
+  const contentType = (source.headers.get("content-type") ?? "image/jpeg").split(";")[0] ?? "image/jpeg";
+  const bytes = Buffer.from(await source.arrayBuffer());
+  if (bytes.length === 0) throw new Error("Creative image download returned an empty body");
+
+  const boundary = `zvedeno_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const metadata = JSON.stringify({
+    name: driveFileName(fileName, contentType),
+    appProperties: { zvedeno: "creative-preview" }
+  });
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`),
+    Buffer.from(`--${boundary}\r\nContent-Type: ${contentType}\r\n\r\n`),
+    bytes,
+    Buffer.from(`\r\n--${boundary}--`)
+  ]);
+
+  const file = await readJson<DriveFileResponse>(
+    await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`
+      },
+      body
+    }),
+    "Google Drive creative upload"
+  );
+
+  await readJson(
+    await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}/permissions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ type: "anyone", role: "reader" })
+    }),
+    "Google Drive creative permission"
+  );
+
+  return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(file.id)}`;
 }
 
 export async function createGoogleSpreadsheet(
@@ -267,28 +292,12 @@ export async function initializeGoogleReport(
         filter: { range: { sheetId, startRowIndex: 0, startColumnIndex: 0 } }
       }
     });
-    if (["Weekly Summary", "Campaigns", "Daily", "Creatives", "Creative Weekly", "Manual Input", "Raw Data"].includes(title)) {
+    if (title === "Raw Data") {
       requests.push({
         updateDimensionProperties: {
           range: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: 1 },
           properties: { hiddenByUser: true },
           fields: "hiddenByUser"
-        }
-      });
-    }
-    if (["Creatives", "Creative Weekly"].includes(title)) {
-      requests.push({
-        updateDimensionProperties: {
-          range: { sheetId, dimension: "ROWS", startIndex: 1 },
-          properties: { pixelSize: 128 },
-          fields: "pixelSize"
-        }
-      });
-      requests.push({
-        updateDimensionProperties: {
-          range: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: 2 },
-          properties: { pixelSize: 130 },
-          fields: "pixelSize"
         }
       });
     }
