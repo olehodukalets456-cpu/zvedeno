@@ -1,0 +1,4 @@
+/* The old Creative Weekly and manual-metric panels belong to the retired report format. */
+.projectPage > .featurePanel {
+  display: none;
+}
