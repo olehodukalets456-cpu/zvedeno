@@ -2,6 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "npx -y pnpm@9.15.9 install --no-frozen-lockfile",
-  "buildCommand": "sed -i 's/startRowIndex/startIndex/g' packages/sync-engine/src/direction-report-by-name.ts && npx -y pnpm@9.15.9 --filter @zvedeno/database exec drizzle-kit push --force && npx -y pnpm@9.15.9 --filter @zvedeno/web build",
+  "buildCommand": "perl -0pi -e 's/(dimension:\\s*\"ROWS\",\\s*)startRowIndex/$1startIndex/g' packages/sync-engine/src/direction-report-by-name.ts && npx -y pnpm@9.15.9 --filter @zvedeno/database exec drizzle-kit push --force && npx -y pnpm@9.15.9 --filter @zvedeno/web build",
   "outputDirectory": "apps/web/.next"
 }
