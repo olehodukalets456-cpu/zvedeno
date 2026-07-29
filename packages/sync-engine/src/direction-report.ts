@@ -30,7 +30,7 @@ type ManagedRow = {
 
 export type DirectionRule = {
   key: string;
-  resultLabel?: string;
+  resultLabel?: string | undefined;
 };
 
 export type DirectionReportConfig = {
@@ -172,7 +172,7 @@ function normalizeRules(config: DirectionReportConfig, discovered: Set<string>):
     }))
     .filter((rule) => rule.key);
 
-  const source = configured.length > 0
+  const source: DirectionRule[] = configured.length > 0
     ? configured
     : Array.from(discovered).sort().map((key) => ({ key, resultLabel: config.manualResultLabel ?? "Фактичний результат" }));
 
