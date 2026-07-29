@@ -7,7 +7,10 @@ import {
   reportRecipes
 } from "@zvedeno/database";
 import { refreshGoogleAccessToken } from "./google-client";
-import { syncDirectionReport, type DirectionReportConfig } from "./direction-report";
+import {
+  syncDirectionReport,
+  type DirectionReportConfig
+} from "./direction-report-by-name";
 
 export type SheetsSyncOptions = {
   projectId?: string;
