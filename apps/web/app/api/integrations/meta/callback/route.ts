@@ -17,6 +17,19 @@ type MetaTokenResponse = {
   expires_in?: number;
 };
 
+type MetaDebugTokenResponse = {
+  data: {
+    app_id?: string;
+    application?: string;
+    data_access_expires_at?: number;
+    expires_at?: number;
+    is_valid: boolean;
+    scopes?: string[];
+    type?: string;
+    user_id?: string;
+  };
+};
+
 type MetaProfile = {
   id: string;
   name?: string;
@@ -35,6 +48,9 @@ type MetaAdAccountPage = {
   paging?: { next?: string };
 };
 
+const oauthStateCookie = "zvedeno_meta_oauth_states";
+const legacyOauthStateCookie = "zvedeno_meta_oauth_state";
+
 async function readJson<T>(response: Response, label: string): Promise<T> {
   const payload: unknown = await response.json();
   if (!response.ok) {
@@ -49,6 +65,13 @@ function appUrl(path: string, params: Record<string, string> = {}) {
   return url;
 }
 
+function oauthFailure(error: string) {
+  const response = NextResponse.redirect(appUrl("/setup", { error }));
+  response.cookies.delete(oauthStateCookie);
+  response.cookies.delete(legacyOauthStateCookie);
+  return response;
+}
+
 async function exchangeLongLivedToken(input: {
   version: string;
   appId: string;
@@ -61,6 +84,18 @@ async function exchangeLongLivedToken(input: {
   url.searchParams.set("client_secret", input.appSecret);
   url.searchParams.set("fb_exchange_token", input.shortToken.access_token);
   return readJson<MetaTokenResponse>(await fetch(url), "Meta long-lived token exchange");
+}
+
+async function debugAccessToken(input: {
+  version: string;
+  appId: string;
+  appSecret: string;
+  accessToken: string;
+}): Promise<MetaDebugTokenResponse> {
+  const url = new URL(`https://graph.facebook.com/${input.version}/debug_token`);
+  url.searchParams.set("input_token", input.accessToken);
+  url.searchParams.set("access_token", `${input.appId}|${input.appSecret}`);
+  return readJson<MetaDebugTokenResponse>(await fetch(url), "Meta token debug");
 }
 
 async function fetchAllAdAccounts(version: string, accessToken: string): Promise<MetaAdAccount[]> {
@@ -83,11 +118,37 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const returnedState = request.nextUrl.searchParams.get("state");
   const oauthError = request.nextUrl.searchParams.get("error");
+  const oauthErrorDescription = request.nextUrl.searchParams.get("error_description");
   const cookieStore = await cookies();
-  const expectedState = cookieStore.get("zvedeno_meta_oauth_state")?.value;
+  const acceptedStates = new Set(
+    [
+      ...(cookieStore.get(oauthStateCookie)?.value.split(",").filter(Boolean) ?? []),
+      cookieStore.get(legacyOauthStateCookie)?.value
+    ].filter((value): value is string => Boolean(value))
+  );
 
-  if (oauthError || !code || !returnedState || !expectedState || returnedState !== expectedState) {
-    return NextResponse.redirect(appUrl("/setup", { error: "meta_oauth_failed" }));
+  if (oauthError) {
+    console.error("Meta OAuth was denied or cancelled", {
+      oauthError,
+      oauthErrorDescription
+    });
+    return oauthFailure("meta_oauth_denied");
+  }
+
+  if (!code || !returnedState) {
+    console.error("Meta OAuth callback is missing code or state", {
+      hasCode: Boolean(code),
+      hasState: Boolean(returnedState)
+    });
+    return oauthFailure("meta_oauth_invalid_response");
+  }
+
+  if (!acceptedStates.has(returnedState)) {
+    console.error("Meta OAuth state mismatch", {
+      returnedState,
+      acceptedStateCount: acceptedStates.size
+    });
+    return oauthFailure("meta_oauth_state_mismatch");
   }
 
   const version = process.env.META_GRAPH_API_VERSION;
@@ -95,7 +156,7 @@ export async function GET(request: NextRequest) {
   const appSecret = process.env.META_APP_SECRET;
   const redirectUri = process.env.META_REDIRECT_URI;
   if (!version || !appId || !appSecret || !redirectUri) {
-    return NextResponse.redirect(appUrl("/setup", { error: "meta_not_configured" }));
+    return oauthFailure("meta_not_configured");
   }
 
   const { db, pool } = createDatabase();
@@ -107,9 +168,26 @@ export async function GET(request: NextRequest) {
     tokenUrl.searchParams.set("code", code);
     const shortToken = await readJson<MetaTokenResponse>(await fetch(tokenUrl), "Meta token exchange");
     const token = await exchangeLongLivedToken({ version, appId, appSecret, shortToken });
+    const debug = await debugAccessToken({
+      version,
+      appId,
+      appSecret,
+      accessToken: token.access_token
+    });
 
-    if (!token.expires_in || token.expires_in < 7 * 24 * 60 * 60) {
-      throw new Error("Meta returned a short-lived token instead of a long-lived token");
+    if (!debug.data.is_valid) {
+      throw new Error("Meta returned an invalid access token");
+    }
+
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    const expiresAtEpoch = debug.data.expires_at && debug.data.expires_at > 0
+      ? debug.data.expires_at
+      : token.expires_in
+        ? nowEpoch + token.expires_in
+        : undefined;
+
+    if (debug.data.type === "USER" && (!expiresAtEpoch || expiresAtEpoch < nowEpoch + 7 * 24 * 60 * 60)) {
+      throw new Error("Meta returned a short-lived user token instead of a long-lived token");
     }
 
     const profileUrl = new URL(`https://graph.facebook.com/${version}/me`);
@@ -148,7 +226,7 @@ export async function GET(request: NextRequest) {
       .values({ workspaceId: workspace.id, userId: owner.id, role: "owner" })
       .onConflictDoNothing();
 
-    const expiresAt = new Date(Date.now() + token.expires_in * 1000);
+    const expiresAt = expiresAtEpoch ? new Date(expiresAtEpoch * 1000) : null;
     const [existingConnection] = await db
       .select({ id: metaConnections.id })
       .from(metaConnections)
@@ -216,13 +294,14 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(appUrl("/setup/accounts", {
       meta: "connected",
       accounts: String(accountList.length),
-      mode: "oauth_long_lived"
+      mode: debug.data.type === "SYSTEM_USER" ? "system_user" : "oauth_long_lived"
     }));
-    response.cookies.delete("zvedeno_meta_oauth_state");
+    response.cookies.delete(oauthStateCookie);
+    response.cookies.delete(legacyOauthStateCookie);
     return response;
   } catch (error) {
     console.error("Meta OAuth callback failed", error);
-    return NextResponse.redirect(appUrl("/setup", { error: "meta_oauth_failed" }));
+    return oauthFailure("meta_token_exchange_failed");
   } finally {
     await pool.end();
   }
