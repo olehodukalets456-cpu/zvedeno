@@ -56,6 +56,23 @@ function addDays(dateValue: string, days: number): string {
 );
 
 replaceOnce(
+`function normalizeCreativeName(value: string): string {
+  return cleanCreativeName(value).toLocaleLowerCase("uk-UA");
+}`,
+`function normalizeCreativeName(value: string): string {
+  return cleanCreativeName(value)
+    .normalize("NFKC")
+    .replace(/[\\u200B-\\u200D\\u2060\\uFEFF]/gu, "")
+    .replace(/\\u00A0/gu, " ")
+    .replace(/[‐‑‒–—―-]+/gu, "-")
+    .replace(/\\s+/gu, " ")
+    .trim()
+    .toLocaleLowerCase("uk-UA");
+}`,
+"robust creative-name normalization"
+);
+
+replaceOnce(
 `function stableCreativeKey(direction: string, identity: string): string {
   return \`creative:${'${direction}'}:${'${encodeURIComponent(identity)}'}\`;
 }`,
@@ -66,16 +83,24 @@ replaceOnce(
 );
 
 replaceOnce(
+`  const liveRows = new Map<string, number>();
+  const legacyClearData: Array<{ range: string; values: SheetCell[][] }> = [];`,
+`  const liveRows = new Map<string, number>();
+  const legacyClearData: Array<{ range: string; values: SheetCell[][] }> = [];
+  const desiredKeys = new Set(rows.map((row) => row.key));`,
+"desired creative row keys"
+);
+
+replaceOnce(
 `    if (clearLegacyDirectionRows && key.startsWith("direction:")) {
       legacyClearData.push({`,
-`    const legacyAllTimeCreative = key.startsWith("creative:")
-      && !/:\\d{4}-\\d{2}-\\d{2}$/.test(key);
+`    const staleCreative = key.startsWith("creative:") && !desiredKeys.has(key);
     if (
       clearLegacyDirectionRows
-      && (key.startsWith("direction:") || legacyAllTimeCreative)
+      && (key.startsWith("direction:") || staleCreative)
     ) {
       legacyClearData.push({`,
-"legacy all-time row cleanup"
+"stale creative row cleanup"
 );
 
 replaceOnce(
@@ -166,4 +191,4 @@ replaceOnce(
 );
 
 writeFileSync(path, source);
-console.log("Applied Monday-Sunday weekly creative aggregation");
+console.log("Applied Monday-Sunday weekly creative aggregation with stale-row cleanup");
