@@ -16,6 +16,8 @@ jobs:
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
+          echo "Starting one-time Zvedeno production sync"
+
           if [ -z "$CRON_SECRET" ]; then
             echo "CRON_SECRET repository secret is missing"
             exit 1
