@@ -20,19 +20,17 @@ type AnalyticsPageProps = {
 };
 
 type DimensionKey =
-  | "sub1"
-  | "sub2"
-  | "sub3"
+  | "offer"
   | "account"
   | "campaign"
   | "adset"
-  | "ad"
+  | "funnel"
   | "date"
   | "week";
 
 type SortKey = "spend" | "results" | "cpa" | "clicks" | "impressions" | "ctr" | "cpc";
-
 type Metrics = Record<string, string | number | null>;
+type Dimensions = Record<DimensionKey, string> & { creative: string };
 
 type SourceRow = {
   date: string;
@@ -49,7 +47,7 @@ type SourceRow = {
 
 type AggregateRow = {
   key: string;
-  dimensions: Record<DimensionKey, string>;
+  dimensions: Dimensions;
   previewUrl: string | null;
   spend: number;
   impressions: number;
@@ -58,14 +56,12 @@ type AggregateRow = {
   sourceRows: number;
 };
 
-const DIMENSION_OPTIONS: Array<{ value: DimensionKey; label: string }> = [
-  { value: "sub1", label: "sub1 · Напрямок" },
-  { value: "sub2", label: "sub2 · Креатив" },
-  { value: "sub3", label: "sub3 · Воронка" },
-  { value: "account", label: "Рекламний кабінет" },
+const GROUP_OPTIONS: Array<{ value: DimensionKey; label: string }> = [
+  { value: "offer", label: "Офер" },
+  { value: "funnel", label: "Воронка" },
+  { value: "account", label: "Кабінет" },
   { value: "campaign", label: "Кампанія" },
-  { value: "adset", label: "Набір реклами" },
-  { value: "ad", label: "Оголошення" },
+  { value: "adset", label: "Адсет" },
   { value: "date", label: "Дата" },
   { value: "week", label: "Тиждень" }
 ];
@@ -80,8 +76,18 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: "cpc", label: "CPC" }
 ];
 
+const SAVED_REPORTS = [
+  { key: "job", label: "JOB", offer: "JOB" },
+  { key: "channel", label: "Канал", offer: "DMND" },
+  { key: "dwh", label: "DWH", offer: "DWH" }
+] as const;
+
 function single(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+function hasQueryKey(query: Record<string, string | string[] | undefined>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(query, key);
 }
 
 function validDate(value: string): boolean {
@@ -104,7 +110,7 @@ function defaultRange(): { from: string; to: string } {
   return { from: isoDate(from), to: isoDate(to) };
 }
 
-function directionFromCampaign(campaignName: string): string {
+function offerFromCampaign(campaignName: string): string {
   const first = campaignName.trim().split(/[|\s—–-]+/u).find(Boolean);
   return (first ?? "OTHER").toLocaleUpperCase("uk-UA");
 }
@@ -163,22 +169,21 @@ function money(value: number, currency: string): string {
 }
 
 function isDimension(value: string): value is DimensionKey {
-  return DIMENSION_OPTIONS.some((option) => option.value === value);
+  return GROUP_OPTIONS.some((option) => option.value === value);
 }
 
 function dimensionLabel(value: DimensionKey): string {
-  return DIMENSION_OPTIONS.find((option) => option.value === value)?.label ?? value;
+  return GROUP_OPTIONS.find((option) => option.value === value)?.label ?? value;
 }
 
-function sourceDimensions(row: SourceRow): Record<DimensionKey, string> {
+function sourceDimensions(row: SourceRow): Dimensions {
   return {
-    sub1: directionFromCampaign(row.campaignName),
-    sub2: row.creativeName || row.adName || "Без назви",
-    sub3: funnelFromCampaign(row.campaignName),
+    offer: offerFromCampaign(row.campaignName),
+    creative: row.creativeName || row.adName || "Без назви",
+    funnel: funnelFromCampaign(row.campaignName),
     account: row.accountName || row.accountId,
     campaign: row.campaignName || "Без кампанії",
     adset: row.adSetName || "Без ad set",
-    ad: row.adName || "Без оголошення",
     date: row.date,
     week: weekLabel(row.date)
   };
@@ -194,6 +199,24 @@ function sortValue(row: AggregateRow, key: SortKey): number | null {
   return row.impressions > 0 ? (row.clicks / row.impressions) * 100 : null;
 }
 
+function reportHref(projectId: string, from: string, to: string, offer: string): string {
+  const params = new URLSearchParams({
+    from,
+    to,
+    offer,
+    group1: "",
+    group2: "",
+    group3: "",
+    sort: "spend",
+    order: "desc"
+  });
+  return `/projects/${projectId}/analytics?${params.toString()}`;
+}
+
+function offerClass(value: string): string {
+  return `trackerOffer trackerOffer${value.replace(/[^A-Za-z0-9]/g, "")}`;
+}
+
 export default async function AnalyticsPage({ params, searchParams }: AnalyticsPageProps) {
   const { projectId } = await params;
   const query = await searchParams;
@@ -203,11 +226,13 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
   let to = validDate(single(query.to)) ? single(query.to) : defaults.to;
   if (from > to) [from, to] = [to, from];
 
-  const groupCandidates = [single(query.group1) || "sub1", single(query.group2) || "sub2", single(query.group3)];
-  const groups = groupCandidates.filter(isDimension).filter((value, index, values) => values.indexOf(value) === index);
-  if (groups.length === 0) groups.push("sub2");
+  const firstGroup = hasQueryKey(query, "group1") ? single(query.group1) : "offer";
+  const groupCandidates = [firstGroup, single(query.group2), single(query.group3)];
+  const groups = groupCandidates
+    .filter(isDimension)
+    .filter((value, index, values) => values.indexOf(value) === index);
 
-  const directionFilter = single(query.direction);
+  const offerFilter = single(query.offer) || single(query.direction);
   const funnelFilter = single(query.funnel);
   const accountFilter = single(query.account);
   const campaignFilter = single(query.campaign);
@@ -287,25 +312,25 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
     }));
 
     const dimensionCache = rows.map((row) => ({ row, dimensions: sourceDimensions(row) }));
-    const directions = Array.from(new Set(dimensionCache.map(({ dimensions }) => dimensions.sub1))).sort();
-    const funnels = Array.from(new Set(dimensionCache.map(({ dimensions }) => dimensions.sub3))).sort();
+    const offers = Array.from(new Set(dimensionCache.map(({ dimensions }) => dimensions.offer))).sort();
+    const funnels = Array.from(new Set(dimensionCache.map(({ dimensions }) => dimensions.funnel))).sort();
     const accounts = Array.from(new Set(dimensionCache.map(({ dimensions }) => dimensions.account))).sort();
     const campaignNames = Array.from(new Set(dimensionCache.map(({ dimensions }) => dimensions.campaign))).sort();
 
     const filtered = dimensionCache.filter(({ row, dimensions }) => {
-      if (directionFilter && dimensions.sub1 !== directionFilter) return false;
-      if (funnelFilter && dimensions.sub3 !== funnelFilter) return false;
+      if (offerFilter && dimensions.offer !== offerFilter) return false;
+      if (funnelFilter && dimensions.funnel !== funnelFilter) return false;
       if (accountFilter && dimensions.account !== accountFilter) return false;
       if (campaignFilter && dimensions.campaign !== campaignFilter) return false;
       if (search) {
         const haystack = [
-          dimensions.sub1,
-          dimensions.sub2,
-          dimensions.sub3,
+          dimensions.offer,
+          dimensions.creative,
+          dimensions.funnel,
           dimensions.account,
           dimensions.campaign,
           dimensions.adset,
-          dimensions.ad,
+          row.adName,
           row.accountId
         ].join(" ").toLocaleLowerCase("uk-UA");
         if (!haystack.includes(search)) return false;
@@ -315,7 +340,7 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
 
     const aggregateMap = new Map<string, AggregateRow>();
     for (const { row, dimensions } of filtered) {
-      const key = groups.map((group) => dimensions[group]).join("\u001f");
+      const key = [...groups.map((group) => dimensions[group]), dimensions.creative].join("\u001f");
       const current = aggregateMap.get(key) ?? {
         key,
         dimensions,
@@ -355,115 +380,135 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
 
     const currency = project.currency ?? "USD";
     const totalCtr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
-    const totalCpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
+    const totalCpc = totals.clicks > 0 ? totals.spend / totals.clicks : null;
     const totalCpa = totals.results > 0 ? totals.spend / totals.results : null;
 
     return (
-      <main className="analyticsMain">
-        <header className="analyticsHeader">
-          <div>
-            <Link className="backLink" href={`/projects/${project.id}`}>← До проєкту</Link>
-            <div className="eyebrow">Meta report builder</div>
-            <h1>{project.name}: аналітика</h1>
-            <p>
-              Дані Meta у стилі трекера. <strong>sub1</strong> — напрямок, <strong>sub2</strong> — назва креативу,
-              <strong> sub3</strong> — воронка. Основний результат: <code>{resultMetric}</code>.
-            </p>
+      <main className="trackerPage">
+        <header className="trackerHeader">
+          <div className="trackerTitle">
+            <span>ID: {project.id.slice(0, 8).toUpperCase()}</span>
+            <strong>{project.name.toLocaleUpperCase("uk-UA")} · CREATIVE REPORT</strong>
           </div>
-          <div className="analyticsHeaderActions">
+          <div className="trackerHeaderActions">
+            <Link className="trackerButton trackerButtonGhost" href={`/projects/${project.id}`}>До проєкту</Link>
             <form action={`/api/projects/${project.id}/sync`} method="post">
-              <button className="secondaryButton" type="submit">Оновити Meta зараз</button>
+              <button className="trackerButton trackerButtonGreen" type="submit">Оновити</button>
             </form>
           </div>
         </header>
 
-        <form className="analyticsFilters" method="get">
-          <label className="fieldLabel">Від<input type="date" name="from" defaultValue={from} /></label>
-          <label className="fieldLabel">До<input type="date" name="to" defaultValue={to} /></label>
-          <label className="fieldLabel">Групування 1
-            <select name="group1" defaultValue={groups[0] ?? "sub1"}>
-              {DIMENSION_OPTIONS.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label className="fieldLabel">Групування 2
-            <select name="group2" defaultValue={groups[1] ?? "sub2"}>
-              <option value="">Не використовувати</option>
-              {DIMENSION_OPTIONS.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label className="fieldLabel">Групування 3
-            <select name="group3" defaultValue={groups[2] ?? ""}>
-              <option value="">Не використовувати</option>
-              {DIMENSION_OPTIONS.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label className="fieldLabel">Напрямок
-            <select name="direction" defaultValue={directionFilter}>
-              <option value="">Усі</option>
-              {directions.map((value) => <option value={value} key={value}>{value}</option>)}
-            </select>
-          </label>
-          <label className="fieldLabel">Воронка
-            <select name="funnel" defaultValue={funnelFilter}>
-              <option value="">Усі</option>
-              {funnels.map((value) => <option value={value} key={value}>{value}</option>)}
-            </select>
-          </label>
-          <label className="fieldLabel">Кабінет
-            <select name="account" defaultValue={accountFilter}>
-              <option value="">Усі</option>
-              {accounts.map((value) => <option value={value} key={value}>{value}</option>)}
-            </select>
-          </label>
-          <label className="fieldLabel analyticsWideFilter">Кампанія
-            <select name="campaign" defaultValue={campaignFilter}>
-              <option value="">Усі</option>
-              {campaignNames.map((value) => <option value={value} key={value}>{value}</option>)}
-            </select>
-          </label>
-          <label className="fieldLabel analyticsWideFilter">Пошук
-            <input name="search" defaultValue={single(query.search)} placeholder="Креатив, кампанія, ad set..." />
-          </label>
-          <label className="fieldLabel">Сортувати
-            <select name="sort" defaultValue={sort}>
-              {SORT_OPTIONS.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label className="fieldLabel">Порядок
-            <select name="order" defaultValue={sortDirection}>
-              <option value="desc">Від більшого</option>
-              <option value="asc">Від меншого</option>
-            </select>
-          </label>
-          <div className="analyticsFilterActions">
-            <button className="primaryButton" type="submit">Застосувати</button>
-            <Link className="secondaryButton" href={`/projects/${project.id}/analytics`}>Скинути</Link>
+        <nav className="savedReports" aria-label="Збережені звіти">
+          <span className="savedReportsLabel">Збережені звіти</span>
+          {SAVED_REPORTS.map((report) => (
+            <Link
+              className={`savedReportLink ${offerFilter === report.offer ? "isActive" : ""}`}
+              href={reportHref(project.id, from, to, report.offer)}
+              key={report.key}
+            >
+              <span className={offerClass(report.offer)} />
+              {report.label}
+            </Link>
+          ))}
+          <Link
+            className={`savedReportLink ${offerFilter === "" ? "isActive" : ""}`}
+            href={`/projects/${project.id}/analytics?from=${from}&to=${to}`}
+          >
+            Усі офери
+          </Link>
+        </nav>
+
+        <form className="trackerControls" method="get">
+          <div className="trackerControlRow">
+            <label className="trackerField">
+              <span>Офер</span>
+              <select name="offer" defaultValue={offerFilter}>
+                <option value="">Усі офери</option>
+                {offers.map((value) => <option value={value} key={value}>{value}</option>)}
+              </select>
+            </label>
+            <label className="trackerField">
+              <span>Воронка</span>
+              <select name="funnel" defaultValue={funnelFilter}>
+                <option value="">Усі воронки</option>
+                {funnels.map((value) => <option value={value} key={value}>{value}</option>)}
+              </select>
+            </label>
+            <label className="trackerField trackerFieldWide">
+              <span>Кабінет</span>
+              <select name="account" defaultValue={accountFilter}>
+                <option value="">Усі кабінети</option>
+                {accounts.map((value) => <option value={value} key={value}>{value}</option>)}
+              </select>
+            </label>
+            <label className="trackerField trackerFieldWide">
+              <span>Кампанія</span>
+              <select name="campaign" defaultValue={campaignFilter}>
+                <option value="">Усі кампанії</option>
+                {campaignNames.map((value) => <option value={value} key={value}>{value}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <div className="trackerControlRow">
+            {[0, 1, 2].map((index) => (
+              <label className="trackerField" key={index}>
+                <span>Групування {index + 1}</span>
+                <select name={`group${index + 1}`} defaultValue={groups[index] ?? ""}>
+                  <option value="">Без групування</option>
+                  {GROUP_OPTIONS.map((option) => (
+                    <option value={option.value} key={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            ))}
+            <label className="trackerField trackerSearch">
+              <span>Пошук по крео</span>
+              <input name="search" defaultValue={single(query.search)} placeholder="Назва креативу..." />
+            </label>
+          </div>
+
+          <div className="trackerControlRow trackerControlRowBottom">
+            <label className="trackerField trackerDate">
+              <span>Від</span>
+              <input type="date" name="from" defaultValue={from} />
+            </label>
+            <label className="trackerField trackerDate">
+              <span>До</span>
+              <input type="date" name="to" defaultValue={to} />
+            </label>
+            <label className="trackerField">
+              <span>Сортування</span>
+              <select name="sort" defaultValue={sort}>
+                {SORT_OPTIONS.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <label className="trackerField">
+              <span>Порядок</span>
+              <select name="order" defaultValue={sortDirection}>
+                <option value="desc">За спаданням</option>
+                <option value="asc">За зростанням</option>
+              </select>
+            </label>
+            <button className="trackerButton trackerButtonGreen" type="submit">Застосувати</button>
+            <Link className="trackerButton trackerButtonGhost" href={`/projects/${project.id}/analytics`}>Скинути</Link>
           </div>
         </form>
 
-        <section className="analyticsSummary">
-          <article><span>Спенд</span><strong>{money(totals.spend, currency)}</strong></article>
-          <article><span>Покази</span><strong>{rounded(totals.impressions, 0)}</strong></article>
-          <article><span>Кліки</span><strong>{rounded(totals.clicks, 0)}</strong></article>
-          <article><span>Результати</span><strong>{rounded(totals.results, 0)}</strong></article>
-          <article><span>CTR</span><strong>{rounded(totalCtr)}%</strong></article>
-          <article><span>CPC</span><strong>{money(totalCpc, currency)}</strong></article>
-          <article><span>CPA</span><strong>{totalCpa === null ? "—" : money(totalCpa, currency)}</strong></article>
-        </section>
+        <div className="trackerStatusBar">
+          <span>Креативів: <strong>{aggregates.length}</strong></span>
+          <span>Денних фактів: <strong>{filtered.length}</strong></span>
+          <span>Період: <strong>{from} — {to}</strong></span>
+          <span>Результат: <strong>{resultMetric}</strong></span>
+        </div>
 
-        <section className="analyticsTablePanel">
-          <div className="analyticsTableMeta">
-            <div>
-              <strong>{aggregates.length}</strong> згрупованих рядків із {filtered.length} денних фактів
-            </div>
-            <small>Період: {from} — {to} · часовий пояс проєкту: {project.timezone}</small>
-          </div>
-
-          <div className="analyticsTableWrap">
-            <table className="analyticsTable">
+        <section className="trackerTablePanel">
+          <div className="trackerTableWrap">
+            <table className="trackerTable">
               <thead>
                 <tr>
                   {groups.map((group) => <th key={group}>{dimensionLabel(group)}</th>)}
+                  <th>Креатив</th>
                   <th>Спенд</th>
                   <th>Покази</th>
                   <th>Кліки</th>
@@ -481,15 +526,21 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
                   return (
                     <tr key={row.key}>
                       {groups.map((group) => (
-                        <td key={group}>
-                          {group === "sub2" ? (
-                            <div className="analyticsCreativeCell">
-                              {row.previewUrl ? <img src={row.previewUrl} alt="" loading="lazy" /> : <span className="analyticsCreativeFallback">—</span>}
-                              <span>{row.dimensions[group]}</span>
-                            </div>
+                        <td className={group === "offer" ? "trackerOfferCell" : ""} key={group}>
+                          {group === "offer" ? (
+                            <span className="trackerOfferValue"><i className={offerClass(row.dimensions.offer)} />{row.dimensions.offer}</span>
                           ) : row.dimensions[group]}
                         </td>
                       ))}
+                      <td>
+                        <div className="trackerCreativeCell">
+                          {row.previewUrl ? <img src={row.previewUrl} alt="" loading="lazy" /> : <span className="trackerCreativeFallback">—</span>}
+                          <div>
+                            <strong>{row.dimensions.creative}</strong>
+                            <small>{row.sourceRows} денних рядків</small>
+                          </div>
+                        </div>
+                      </td>
                       <td>{money(row.spend, currency)}</td>
                       <td>{rounded(row.impressions, 0)}</td>
                       <td>{rounded(row.clicks, 0)}</td>
@@ -501,11 +552,23 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={groups.length + 1}>Всього</td>
+                  <td>{money(totals.spend, currency)}</td>
+                  <td>{rounded(totals.impressions, 0)}</td>
+                  <td>{rounded(totals.clicks, 0)}</td>
+                  <td>{rounded(totals.results, 0)}</td>
+                  <td>{rounded(totalCtr)}%</td>
+                  <td>{totalCpc === null ? "—" : money(totalCpc, currency)}</td>
+                  <td>{totalCpa === null ? "—" : money(totalCpa, currency)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
 
-          {aggregates.length === 0 && <div className="analyticsEmpty">За цими фільтрами немає даних.</div>}
-          {aggregates.length > 1000 && <div className="configNotice">Показано перші 1000 рядків. Звузь період або додай фільтр.</div>}
+          {aggregates.length === 0 && <div className="trackerEmpty">За цими фільтрами немає даних.</div>}
+          {aggregates.length > 1000 && <div className="trackerWarning">Показано перші 1000 рядків. Звузь період або додай фільтр.</div>}
         </section>
       </main>
     );
