@@ -157,5 +157,13 @@ replaceOnce(
 "weekly output key"
 );
 
+replaceOnce(
+`          dimension: "ROWS",
+          startRowIndex: 1`,
+`          dimension: "ROWS",
+          startIndex: 1`,
+"Google Sheets row dimension range"
+);
+
 writeFileSync(path, source);
 console.log("Applied Monday-Sunday weekly creative aggregation");
