@@ -10,6 +10,7 @@ import {
   workspaces
 } from "@zvedeno/database";
 import { encryptSecret } from "@zvedeno/shared";
+import { discoverMetaAdAccounts } from "../../../../../lib/meta-account-discovery";
 
 type MetaTokenResponse = {
   access_token: string;
@@ -33,19 +34,6 @@ type MetaDebugTokenResponse = {
 type MetaProfile = {
   id: string;
   name?: string;
-};
-
-type MetaAdAccount = {
-  id: string;
-  name?: string;
-  account_status?: number;
-  currency?: string;
-  timezone_name?: string;
-};
-
-type MetaAdAccountPage = {
-  data: MetaAdAccount[];
-  paging?: { next?: string };
 };
 
 const oauthStateCookie = "zvedeno_meta_oauth_states";
@@ -96,22 +84,6 @@ async function debugAccessToken(input: {
   url.searchParams.set("input_token", input.accessToken);
   url.searchParams.set("access_token", `${input.appId}|${input.appSecret}`);
   return readJson<MetaDebugTokenResponse>(await fetch(url), "Meta token debug");
-}
-
-async function fetchAllAdAccounts(version: string, accessToken: string): Promise<MetaAdAccount[]> {
-  const initial = new URL(`https://graph.facebook.com/${version}/me/adaccounts`);
-  initial.searchParams.set("fields", "id,name,account_status,currency,timezone_name");
-  initial.searchParams.set("limit", "500");
-  initial.searchParams.set("access_token", accessToken);
-
-  const accounts: MetaAdAccount[] = [];
-  let next: string | undefined = initial.toString();
-  while (next) {
-    const page: MetaAdAccountPage = await readJson<MetaAdAccountPage>(await fetch(next), "Meta ad accounts request");
-    accounts.push(...page.data);
-    next = page.paging?.next;
-  }
-  return accounts;
 }
 
 export async function GET(request: NextRequest) {
@@ -194,7 +166,11 @@ export async function GET(request: NextRequest) {
     profileUrl.searchParams.set("fields", "id,name");
     profileUrl.searchParams.set("access_token", token.access_token);
     const profile = await readJson<MetaProfile>(await fetch(profileUrl), "Meta profile request");
-    const accountList = await fetchAllAdAccounts(version, token.access_token);
+    const discovery = await discoverMetaAdAccounts(version, token.access_token);
+
+    if (discovery.warnings.length > 0) {
+      console.warn("Meta account discovery completed with warnings", discovery.warnings);
+    }
 
     const ownerEmail = process.env.OWNER_EMAIL ?? "owner@zvedeno.local";
     const workspaceName = process.env.DEFAULT_WORKSPACE_NAME ?? "Oleh workspace";
@@ -266,7 +242,7 @@ export async function GET(request: NextRequest) {
       connectionId = created.id;
     }
 
-    for (const account of accountList) {
+    for (const account of discovery.accounts) {
       await db
         .insert(adAccounts)
         .values({
@@ -293,7 +269,12 @@ export async function GET(request: NextRequest) {
 
     const response = NextResponse.redirect(appUrl("/setup/accounts", {
       meta: "connected",
-      accounts: String(accountList.length),
+      accounts: String(discovery.accounts.length),
+      direct: String(discovery.directCount),
+      businesses: String(discovery.businessCount),
+      owned: String(discovery.ownedCount),
+      client: String(discovery.clientCount),
+      warnings: String(discovery.warnings.length),
       mode: debug.data.type === "SYSTEM_USER" ? "system_user" : "oauth_long_lived"
     }));
     response.cookies.delete(oauthStateCookie);
