@@ -1,0 +1,8 @@
+.trackerTreePanel {
+  max-height: 72vh;
+  overflow: auto;
+}
+
+.trackerTreeHeader {
+  top: 0;
+}
