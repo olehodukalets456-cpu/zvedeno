@@ -40,46 +40,252 @@
   background: transparent;
 }
 
+/* Keitaro-style control toolbar. The report remains dark, while controls become compact and scannable. */
+.trackerControls {
+  padding: 12px !important;
+}
+
 .trackerControlRowPrimary {
-  grid-template-columns: 180px minmax(300px, .9fr) minmax(360px, 1.1fr);
-  align-items: end;
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px !important;
 }
 
 .trackerControlRowPrimary > .trackerField:first-child {
-  grid-column: 1;
-  grid-row: 1;
+  flex: 0 0 170px;
+  order: 1;
 }
 
 .trackerControlRowPrimary .trackerSearch {
-  grid-column: 2;
-  grid-row: 1;
+  position: relative;
+  flex: 0 1 360px;
+  min-width: 260px;
+  order: 2;
 }
 
 .trackerControlRowPrimary .trackerFieldWide {
-  grid-column: 3;
-  grid-row: 1;
+  flex: 0 1 320px;
+  min-width: 260px;
+  order: 3;
 }
 
-.trackerControlRowPrimary .trackerSearch input {
-  border-color: #4a4a4a;
-  background-color: #2d2d2d;
+.trackerControlRowPrimary .trackerField > span,
+.trackerControlRowBottom .trackerField > span,
+.trackerGroupingLabel {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  clip-path: inset(50%) !important;
+}
+
+.trackerControlRowPrimary .trackerField input,
+.trackerControlRowPrimary .trackerField select,
+.trackerControlRowBottom .trackerField input,
+.trackerControlRowBottom .trackerField select {
+  height: 40px !important;
+  border-color: #4a4a4a !important;
+  border-radius: 6px !important;
+  background-color: #303030 !important;
+  color: #ececec !important;
+  font-size: 14px !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
   transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
 }
 
+.trackerControlRowPrimary .trackerField input:hover,
+.trackerControlRowPrimary .trackerField select:hover,
+.trackerControlRowBottom .trackerField input:hover,
+.trackerControlRowBottom .trackerField select:hover {
+  border-color: #606060 !important;
+  background-color: #353535 !important;
+}
+
+.trackerControlRowPrimary .trackerField input:focus,
+.trackerControlRowPrimary .trackerField select:focus,
+.trackerControlRowBottom .trackerField input:focus,
+.trackerControlRowBottom .trackerField select:focus {
+  border-color: #5bbd68 !important;
+  background-color: #373737 !important;
+  box-shadow: 0 0 0 2px rgba(91, 189, 104, .16) !important;
+}
+
+.trackerControlRowPrimary .trackerSearch::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 13px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #949494;
+  border-radius: 50%;
+  transform: translateY(-58%);
+  pointer-events: none;
+}
+
+.trackerControlRowPrimary .trackerSearch::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: calc(50% + 5px);
+  left: 24px;
+  width: 6px;
+  height: 2px;
+  border-radius: 2px;
+  background: #949494;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.trackerControlRowPrimary .trackerSearch input {
+  padding-left: 38px !important;
+}
+
 .trackerControlRowPrimary .trackerSearch input::placeholder {
-  color: #858585;
+  color: #929292;
 }
 
-.trackerControlRowPrimary .trackerSearch input:hover {
-  border-color: #5a5a5a;
-  background-color: #313131;
+.trackerGroupingBuilder {
+  display: block !important;
+  margin-bottom: 10px !important;
 }
 
-.trackerControlRowPrimary .trackerSearch input:focus {
-  border-color: #5bbd68;
-  background-color: #323232;
-  box-shadow: 0 0 0 1px rgba(91, 189, 104, .2);
+.trackerGroupingSequence {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-height: 40px !important;
+  overflow-x: auto;
+  padding: 0 0 2px !important;
+}
+
+.trackerGroupingSlot {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.trackerGroupingArrow {
+  color: #777;
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.trackerGroupingChip {
+  display: inline-flex !important;
+  align-items: stretch !important;
+  height: 40px !important;
+  overflow: hidden;
+  border: 1px solid #4a4a4a !important;
+  border-radius: 6px !important;
+  background: #303030 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+}
+
+.trackerGroupingChip select,
+.trackerGroupingAdd {
+  min-width: 170px !important;
+  height: 38px !important;
+  padding: 0 12px !important;
+  border: 0 !important;
+  outline: none;
+  background: #303030 !important;
+  color: #e8e8e8 !important;
+  font-size: 14px !important;
+  cursor: pointer;
+}
+
+.trackerGroupingChip:hover,
+.trackerGroupingAdd:hover {
+  border-color: #606060 !important;
+  background: #353535 !important;
+}
+
+.trackerGroupingChip select:hover,
+.trackerGroupingChip select:focus {
+  background: #353535 !important;
+}
+
+.trackerGroupingMove {
+  display: none !important;
+}
+
+.trackerGroupingRemove {
+  width: 35px !important;
+  height: 38px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-left: 1px solid #4a4a4a !important;
+  background: #343434 !important;
+  color: #a8a8a8 !important;
+  font-size: 18px !important;
+  cursor: pointer;
+}
+
+.trackerGroupingRemove:hover {
+  background: #444 !important;
+  color: #fff !important;
+}
+
+.trackerGroupingAdd {
+  flex: 0 0 170px !important;
+  border: 1px solid #4a4a4a !important;
+  border-radius: 6px !important;
+  background: #303030 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+}
+
+.trackerControlRowBottom {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-bottom: 0 !important;
+}
+
+.trackerControlRowBottom .trackerField {
+  flex: 0 0 165px;
+}
+
+.trackerControlRowBottom .trackerRangePreset {
+  flex-basis: 190px;
+}
+
+.trackerControlRowBottom .trackerDate {
+  flex-basis: 155px;
+}
+
+.trackerControlRowBottom .trackerApplyButton {
+  width: auto !important;
+  min-width: 135px;
+  min-height: 40px !important;
+  margin-left: 2px;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+}
+
+.trackerControlRowBottom .trackerResetButton {
+  position: relative;
+  width: 40px !important;
+  min-width: 40px;
+  min-height: 40px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  font-size: 0 !important;
+}
+
+.trackerControlRowBottom .trackerResetButton::before {
+  content: "↻";
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .trackerOffer {
@@ -109,21 +315,34 @@
   min-width: 0;
 }
 
-@media (max-width: 1120px) {
-  .trackerControlRowPrimary {
-    grid-template-columns: 160px minmax(260px, .9fr) minmax(300px, 1.1fr);
+@media (max-width: 980px) {
+  .trackerControlRowPrimary > .trackerField:first-child {
+    flex-basis: 150px;
+  }
+
+  .trackerControlRowPrimary .trackerSearch,
+  .trackerControlRowPrimary .trackerFieldWide {
+    flex: 1 1 280px;
   }
 }
 
 @media (max-width: 760px) {
-  .trackerControlRowPrimary {
-    grid-template-columns: 1fr;
+  .trackerControlRowPrimary,
+  .trackerControlRowBottom {
+    align-items: stretch !important;
   }
 
   .trackerControlRowPrimary > .trackerField:first-child,
   .trackerControlRowPrimary .trackerSearch,
-  .trackerControlRowPrimary .trackerFieldWide {
-    grid-column: auto;
-    grid-row: auto;
+  .trackerControlRowPrimary .trackerFieldWide,
+  .trackerControlRowBottom .trackerField,
+  .trackerControlRowBottom .trackerRangePreset,
+  .trackerControlRowBottom .trackerDate {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
+
+  .trackerControlRowBottom .trackerApplyButton {
+    flex: 1 1 auto;
   }
 }
