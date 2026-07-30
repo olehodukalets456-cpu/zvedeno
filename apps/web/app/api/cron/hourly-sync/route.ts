@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runScheduledSyncCycle } from "@zvedeno/sync-engine";
+import { refreshMetaAdAccounts } from "../../../../lib/meta-account-refresh";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -16,12 +17,17 @@ async function run(request: NextRequest) {
   }
 
   try {
+    const accountRefresh = await refreshMetaAdAccounts();
     const summary = await runScheduledSyncCycle();
+    const errors = summary.errors + accountRefresh.errors;
+
     return NextResponse.json({
-      ok: summary.errors === 0,
+      ok: errors === 0,
       ranAt: new Date().toISOString(),
-      ...summary
-    }, { status: summary.errors === 0 ? 200 : 207 });
+      accountRefresh,
+      ...summary,
+      errors
+    }, { status: errors === 0 ? 200 : 207 });
   } catch (error) {
     console.error("Hourly sync failed", error);
     return NextResponse.json({
