@@ -3,5 +3,11 @@
   "framework": "nextjs",
   "installCommand": "npx -y pnpm@9.15.9 install --no-frozen-lockfile",
   "buildCommand": "node scripts/vercel-build.mjs",
-  "outputDirectory": "apps/web/.next"
+  "outputDirectory": "apps/web/.next",
+  "crons": [
+    {
+      "path": "/api/cron/hourly-sync",
+      "schedule": "17 4 * * *"
+    }
+  ]
 }
