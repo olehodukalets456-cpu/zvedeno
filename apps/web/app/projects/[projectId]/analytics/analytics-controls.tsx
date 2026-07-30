@@ -47,10 +47,15 @@ export function GroupingBuilder({ options, initialGroups }: GroupingBuilderProps
       const next = [...current];
 
       if (duplicateIndex !== -1 && duplicateIndex !== index) {
-        [next[index], next[duplicateIndex]] = [next[duplicateIndex], next[index]];
+        const currentValue = next[index];
+        const duplicateValue = next[duplicateIndex];
+        if (currentValue === undefined || duplicateValue === undefined) return current;
+        next[index] = duplicateValue;
+        next[duplicateIndex] = currentValue;
         return next;
       }
 
+      if (next[index] === undefined) return current;
       next[index] = value;
       return next;
     });
@@ -64,8 +69,12 @@ export function GroupingBuilder({ options, initialGroups }: GroupingBuilderProps
     setGroups((current) => {
       const target = index + direction;
       if (target < 0 || target >= current.length) return current;
+      const currentValue = current[index];
+      const targetValue = current[target];
+      if (currentValue === undefined || targetValue === undefined) return current;
       const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
+      next[index] = targetValue;
+      next[target] = currentValue;
       return next;
     });
   }
