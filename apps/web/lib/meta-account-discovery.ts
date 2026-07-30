@@ -40,7 +40,8 @@ async function fetchAllPages<T>(initial: URL, label: string): Promise<T[]> {
   let next: string | undefined = initial.toString();
 
   while (next) {
-    const page = await readJson<MetaPage<T>>(await fetch(next, { cache: "no-store" }), label);
+    const response: Response = await fetch(next, { cache: "no-store" });
+    const page: MetaPage<T> = await readJson<MetaPage<T>>(response, label);
     values.push(...page.data);
     next = page.paging?.next;
   }
