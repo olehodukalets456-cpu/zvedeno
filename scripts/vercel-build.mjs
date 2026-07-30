@@ -1,0 +1,9 @@
+import { execSync } from "node:child_process";
+
+function run(command) {
+  execSync(command, { stdio: "inherit", shell: "/bin/bash" });
+}
+
+run("node scripts/patch-weekly-report.mjs");
+run("npx -y pnpm@9.15.9 --filter @zvedeno/database exec drizzle-kit push --force");
+run("npx -y pnpm@9.15.9 --filter @zvedeno/web build");
