@@ -41,15 +41,45 @@
 }
 
 .trackerControlRowPrimary {
-  grid-template-columns: 180px minmax(320px, 2fr) minmax(250px, 1fr);
+  grid-template-columns: 180px minmax(300px, .9fr) minmax(360px, 1.1fr);
+  align-items: end;
+}
+
+.trackerControlRowPrimary > .trackerField:first-child {
+  grid-column: 1;
+  grid-row: 1;
 }
 
 .trackerControlRowPrimary .trackerSearch {
   grid-column: 2;
+  grid-row: 1;
 }
 
 .trackerControlRowPrimary .trackerFieldWide {
   grid-column: 3;
+  grid-row: 1;
+}
+
+.trackerControlRowPrimary .trackerSearch input {
+  border-color: #4a4a4a;
+  background-color: #2d2d2d;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+
+.trackerControlRowPrimary .trackerSearch input::placeholder {
+  color: #858585;
+}
+
+.trackerControlRowPrimary .trackerSearch input:hover {
+  border-color: #5a5a5a;
+  background-color: #313131;
+}
+
+.trackerControlRowPrimary .trackerSearch input:focus {
+  border-color: #5bbd68;
+  background-color: #323232;
+  box-shadow: 0 0 0 1px rgba(91, 189, 104, .2);
 }
 
 .trackerOffer {
@@ -81,7 +111,7 @@
 
 @media (max-width: 1120px) {
   .trackerControlRowPrimary {
-    grid-template-columns: minmax(150px, .65fr) minmax(280px, 1.6fr) minmax(220px, 1fr);
+    grid-template-columns: 160px minmax(260px, .9fr) minmax(300px, 1.1fr);
   }
 }
 
@@ -90,8 +120,10 @@
     grid-template-columns: 1fr;
   }
 
+  .trackerControlRowPrimary > .trackerField:first-child,
   .trackerControlRowPrimary .trackerSearch,
   .trackerControlRowPrimary .trackerFieldWide {
     grid-column: auto;
+    grid-row: auto;
   }
 }
