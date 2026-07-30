@@ -1,9 +1,9 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import {
   adAccounts,
   ads,
-  adSets,
   campaigns,
   createDatabase,
   dailyInsights,
@@ -21,16 +21,15 @@ type AnalyticsPageProps = {
 
 type DimensionKey =
   | "offer"
-  | "account"
-  | "campaign"
-  | "adset"
+  | "week"
+  | "creative"
   | "funnel"
-  | "date"
-  | "week";
+  | "account"
+  | "date";
 
 type SortKey = "spend" | "results" | "cpa" | "clicks" | "impressions" | "ctr" | "cpc";
 type Metrics = Record<string, string | number | null>;
-type Dimensions = Record<DimensionKey, string> & { creative: string };
+type Dimensions = Record<DimensionKey, string>;
 
 type SourceRow = {
   date: string;
@@ -38,32 +37,38 @@ type SourceRow = {
   accountId: string;
   accountName: string;
   campaignName: string;
-  adSetName: string;
   adName: string;
   creativeName: string;
   thumbnailUrl: string | null;
   archivedMediaUrl: string | null;
 };
 
-type AggregateRow = {
-  key: string;
+type DimensionRow = {
+  row: SourceRow;
   dimensions: Dimensions;
+};
+
+type TreeNode = {
+  key: string;
+  label: string;
+  dimension: DimensionKey | null;
+  depth: number;
   previewUrl: string | null;
   spend: number;
   impressions: number;
   clicks: number;
   results: number;
   sourceRows: number;
+  children: Map<string, TreeNode>;
 };
 
 const GROUP_OPTIONS: Array<{ value: DimensionKey; label: string }> = [
   { value: "offer", label: "Офер" },
+  { value: "week", label: "Тиждень" },
+  { value: "creative", label: "Креатив" },
   { value: "funnel", label: "Воронка" },
   { value: "account", label: "Кабінет" },
-  { value: "campaign", label: "Кампанія" },
-  { value: "adset", label: "Адсет" },
-  { value: "date", label: "Дата" },
-  { value: "week", label: "Тиждень" }
+  { value: "date", label: "Дата" }
 ];
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
@@ -179,24 +184,121 @@ function dimensionLabel(value: DimensionKey): string {
 function sourceDimensions(row: SourceRow): Dimensions {
   return {
     offer: offerFromCampaign(row.campaignName),
-    creative: row.creativeName || row.adName || "Без назви",
+    week: weekLabel(row.date),
+    creative: row.creativeName.trim() || row.adName.trim() || "Без назви",
     funnel: funnelFromCampaign(row.campaignName),
     account: row.accountName || row.accountId,
-    campaign: row.campaignName || "Без кампанії",
-    adset: row.adSetName || "Без ad set",
-    date: row.date,
-    week: weekLabel(row.date)
+    date: row.date
   };
 }
 
-function sortValue(row: AggregateRow, key: SortKey): number | null {
-  if (key === "spend") return row.spend;
-  if (key === "results") return row.results;
-  if (key === "clicks") return row.clicks;
-  if (key === "impressions") return row.impressions;
-  if (key === "cpa") return row.results > 0 ? row.spend / row.results : null;
-  if (key === "cpc") return row.clicks > 0 ? row.spend / row.clicks : null;
-  return row.impressions > 0 ? (row.clicks / row.impressions) * 100 : null;
+function displayMediaUrl(value: string | null): string | null {
+  if (!value) return null;
+
+  try {
+    const url = new URL(value);
+    if (url.hostname === "drive.google.com" || url.hostname.endsWith(".googleusercontent.com")) {
+      const pathMatch = url.pathname.match(/\/d\/([^/]+)/);
+      const id = url.searchParams.get("id") ?? pathMatch?.[1];
+      if (id) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w320`;
+    }
+  } catch {
+    return value;
+  }
+
+  return value;
+}
+
+function sortValue(node: TreeNode, key: SortKey): number | null {
+  if (key === "spend") return node.spend;
+  if (key === "results") return node.results;
+  if (key === "clicks") return node.clicks;
+  if (key === "impressions") return node.impressions;
+  if (key === "cpa") return node.results > 0 ? node.spend / node.results : null;
+  if (key === "cpc") return node.clicks > 0 ? node.spend / node.clicks : null;
+  return node.impressions > 0 ? (node.clicks / node.impressions) * 100 : null;
+}
+
+function addMetrics(node: TreeNode, row: SourceRow, resultMetric: string): void {
+  node.spend += numberMetric(row.metrics, "spend");
+  node.impressions += numberMetric(row.metrics, "impressions");
+  node.clicks += numberMetric(row.metrics, "clicks");
+  node.results += numberMetric(row.metrics, resultMetric);
+  node.sourceRows += 1;
+}
+
+function buildTree(rows: DimensionRow[], groups: DimensionKey[], resultMetric: string): TreeNode {
+  const root: TreeNode = {
+    key: "total",
+    label: "Всього",
+    dimension: null,
+    depth: 0,
+    previewUrl: null,
+    spend: 0,
+    impressions: 0,
+    clicks: 0,
+    results: 0,
+    sourceRows: 0,
+    children: new Map()
+  };
+
+  for (const item of rows) {
+    addMetrics(root, item.row, resultMetric);
+    let parent = root;
+
+    groups.forEach((dimension, index) => {
+      const label = item.dimensions[dimension] || "—";
+      const childMapKey = `${dimension}\u001f${label}`;
+      let child = parent.children.get(childMapKey);
+
+      if (!child) {
+        child = {
+          key: `${parent.key}\u001f${childMapKey}`,
+          label,
+          dimension,
+          depth: index + 1,
+          previewUrl: dimension === "creative"
+            ? displayMediaUrl(item.row.archivedMediaUrl ?? item.row.thumbnailUrl)
+            : null,
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          results: 0,
+          sourceRows: 0,
+          children: new Map()
+        };
+        parent.children.set(childMapKey, child);
+      }
+
+      if (dimension === "creative" && !child.previewUrl) {
+        child.previewUrl = displayMediaUrl(item.row.archivedMediaUrl ?? item.row.thumbnailUrl);
+      }
+
+      addMetrics(child, item.row, resultMetric);
+      parent = child;
+    });
+  }
+
+  return root;
+}
+
+function sortedChildren(node: TreeNode, sort: SortKey, order: "asc" | "desc"): TreeNode[] {
+  return Array.from(node.children.values()).sort((left, right) => {
+    const leftValue = sortValue(left, sort);
+    const rightValue = sortValue(right, sort);
+
+    if (leftValue === null && rightValue === null) return left.label.localeCompare(right.label, "uk-UA");
+    if (leftValue === null) return 1;
+    if (rightValue === null) return -1;
+
+    const difference = leftValue - rightValue;
+    if (difference !== 0) return order === "asc" ? difference : -difference;
+    return left.label.localeCompare(right.label, "uk-UA");
+  });
+}
+
+function offerClass(value: string): string {
+  return `trackerOffer trackerOffer${value.replace(/[^A-Za-z0-9]/g, "")}`;
 }
 
 function reportHref(projectId: string, from: string, to: string, offer: string): string {
@@ -204,17 +306,105 @@ function reportHref(projectId: string, from: string, to: string, offer: string):
     from,
     to,
     offer,
-    group1: "",
-    group2: "",
+    group1: "week",
+    group2: "creative",
     group3: "",
+    group4: "",
+    group5: "",
     sort: "spend",
     order: "desc"
   });
   return `/projects/${projectId}/analytics?${params.toString()}`;
 }
 
-function offerClass(value: string): string {
-  return `trackerOffer trackerOffer${value.replace(/[^A-Za-z0-9]/g, "")}`;
+function allOffersHref(projectId: string, from: string, to: string): string {
+  const params = new URLSearchParams({
+    from,
+    to,
+    group1: "offer",
+    group2: "week",
+    group3: "creative",
+    group4: "",
+    group5: "",
+    sort: "spend",
+    order: "desc"
+  });
+  return `/projects/${projectId}/analytics?${params.toString()}`;
+}
+
+function MetricCells({ node, currency }: { node: TreeNode; currency: string }): ReactNode {
+  const ctr = node.impressions > 0 ? (node.clicks / node.impressions) * 100 : 0;
+  const cpc = node.clicks > 0 ? node.spend / node.clicks : null;
+  const cpa = node.results > 0 ? node.spend / node.results : null;
+
+  return (
+    <>
+      <span className="trackerMetric">{money(node.spend, currency)}</span>
+      <span className="trackerMetric">{rounded(node.impressions, 0)}</span>
+      <span className="trackerMetric">{rounded(node.clicks, 0)}</span>
+      <span className="trackerMetric">{rounded(node.results, 0)}</span>
+      <span className="trackerMetric">{rounded(ctr)}%</span>
+      <span className="trackerMetric">{cpc === null ? "—" : money(cpc, currency)}</span>
+      <span className="trackerMetric">{cpa === null ? "—" : money(cpa, currency)}</span>
+    </>
+  );
+}
+
+function NodeLabel({ node, expandable }: { node: TreeNode; expandable: boolean }): ReactNode {
+  return (
+    <span className="trackerTreeLabel" style={{ paddingLeft: `${10 + node.depth * 18}px` }}>
+      <span className={`trackerTreeCaret ${expandable ? "" : "isPlaceholder"}`}>▶</span>
+      {node.dimension === "offer" && <i className={offerClass(node.label)} />}
+      {node.dimension === "creative" && (
+        node.previewUrl
+          ? <img className="trackerTreePreview" src={node.previewUrl} alt="" loading="lazy" />
+          : <span className="trackerTreePreview trackerCreativeFallback">—</span>
+      )}
+      <span className="trackerTreeLabelText">
+        <strong>{node.label}</strong>
+        {node.dimension && <small>{dimensionLabel(node.dimension)} · {node.sourceRows} фактів</small>}
+      </span>
+    </span>
+  );
+}
+
+function TreeNodeView({
+  node,
+  currency,
+  sort,
+  order
+}: {
+  node: TreeNode;
+  currency: string;
+  sort: SortKey;
+  order: "asc" | "desc";
+}): ReactNode {
+  const children = sortedChildren(node, sort, order);
+  const expandable = children.length > 0;
+  const rowClass = `trackerTreeRow ${node.depth === 0 ? "trackerTreeTotal" : ""}`;
+
+  if (!expandable) {
+    return (
+      <div className={rowClass}>
+        <NodeLabel node={node} expandable={false} />
+        <MetricCells node={node} currency={currency} />
+      </div>
+    );
+  }
+
+  return (
+    <details className={`trackerTreeDetails ${node.depth === 0 ? "trackerTreeRoot" : ""}`} open={node.depth === 0}>
+      <summary className={rowClass}>
+        <NodeLabel node={node} expandable />
+        <MetricCells node={node} currency={currency} />
+      </summary>
+      <div className="trackerTreeChildren">
+        {children.map((child) => (
+          <TreeNodeView key={child.key} node={child} currency={currency} sort={sort} order={order} />
+        ))}
+      </div>
+    </details>
+  );
 }
 
 export default async function AnalyticsPage({ params, searchParams }: AnalyticsPageProps) {
@@ -226,8 +416,11 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
   let to = validDate(single(query.to)) ? single(query.to) : defaults.to;
   if (from > to) [from, to] = [to, from];
 
-  const firstGroup = hasQueryKey(query, "group1") ? single(query.group1) : "offer";
-  const groupCandidates = [firstGroup, single(query.group2), single(query.group3)];
+  const hasExplicitGroups = [1, 2, 3, 4, 5].some((index) => hasQueryKey(query, `group${index}`));
+  const defaultGroups = ["offer", "week", "creative"];
+  const groupCandidates = hasExplicitGroups
+    ? [1, 2, 3, 4, 5].map((index) => single(query[`group${index}`]))
+    : defaultGroups;
   const groups = groupCandidates
     .filter(isDimension)
     .filter((value, index, values) => values.indexOf(value) === index);
@@ -235,13 +428,12 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
   const offerFilter = single(query.offer) || single(query.direction);
   const funnelFilter = single(query.funnel);
   const accountFilter = single(query.account);
-  const campaignFilter = single(query.campaign);
   const search = single(query.search).trim().toLocaleLowerCase("uk-UA");
   const requestedSort = single(query.sort);
   const sort: SortKey = SORT_OPTIONS.some((option) => option.value === requestedSort)
     ? requestedSort as SortKey
     : "spend";
-  const sortDirection = single(query.order) === "asc" ? "asc" : "desc";
+  const sortDirection: "asc" | "desc" = single(query.order) === "asc" ? "asc" : "desc";
 
   const { db, pool } = createDatabase();
 
@@ -279,7 +471,6 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
         accountId: adAccounts.externalAccountId,
         accountName: adAccounts.name,
         campaignName: campaigns.name,
-        adSetName: adSets.name,
         adName: ads.name,
         creativeName: mediaAssets.canonicalName,
         thumbnailUrl: mediaAssets.thumbnailUrl,
@@ -288,7 +479,6 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
       .from(dailyInsights)
       .innerJoin(adAccounts, eq(dailyInsights.adAccountId, adAccounts.id))
       .leftJoin(campaigns, eq(dailyInsights.campaignId, campaigns.id))
-      .leftJoin(adSets, eq(dailyInsights.adSetId, adSets.id))
       .leftJoin(ads, eq(dailyInsights.adId, ads.id))
       .leftJoin(mediaAssets, eq(dailyInsights.mediaAssetId, mediaAssets.id))
       .where(and(
@@ -304,91 +494,38 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
       accountId: row.accountId,
       accountName: row.accountName,
       campaignName: row.campaignName ?? "",
-      adSetName: row.adSetName ?? "",
       adName: row.adName ?? "",
-      creativeName: row.creativeName ?? row.adName ?? "Без назви",
+      creativeName: row.creativeName?.trim() || row.adName?.trim() || "Без назви",
       thumbnailUrl: row.thumbnailUrl,
       archivedMediaUrl: row.archivedMediaUrl
     }));
 
-    const dimensionCache = rows.map((row) => ({ row, dimensions: sourceDimensions(row) }));
+    const dimensionCache: DimensionRow[] = rows.map((row) => ({ row, dimensions: sourceDimensions(row) }));
     const offers = Array.from(new Set(dimensionCache.map(({ dimensions }) => dimensions.offer))).sort();
     const funnels = Array.from(new Set(dimensionCache.map(({ dimensions }) => dimensions.funnel))).sort();
     const accounts = Array.from(new Set(dimensionCache.map(({ dimensions }) => dimensions.account))).sort();
-    const campaignNames = Array.from(new Set(dimensionCache.map(({ dimensions }) => dimensions.campaign))).sort();
 
     const filtered = dimensionCache.filter(({ row, dimensions }) => {
       if (offerFilter && dimensions.offer !== offerFilter) return false;
       if (funnelFilter && dimensions.funnel !== funnelFilter) return false;
       if (accountFilter && dimensions.account !== accountFilter) return false;
-      if (campaignFilter && dimensions.campaign !== campaignFilter) return false;
       if (search) {
-        const haystack = [
-          dimensions.offer,
-          dimensions.creative,
-          dimensions.funnel,
-          dimensions.account,
-          dimensions.campaign,
-          dimensions.adset,
-          row.adName,
-          row.accountId
-        ].join(" ").toLocaleLowerCase("uk-UA");
+        const haystack = [dimensions.creative, row.adName].join(" ").toLocaleLowerCase("uk-UA");
         if (!haystack.includes(search)) return false;
       }
       return true;
     });
 
-    const aggregateMap = new Map<string, AggregateRow>();
-    for (const { row, dimensions } of filtered) {
-      const key = [...groups.map((group) => dimensions[group]), dimensions.creative].join("\u001f");
-      const current = aggregateMap.get(key) ?? {
-        key,
-        dimensions,
-        previewUrl: row.archivedMediaUrl ?? row.thumbnailUrl,
-        spend: 0,
-        impressions: 0,
-        clicks: 0,
-        results: 0,
-        sourceRows: 0
-      };
-      current.previewUrl ??= row.archivedMediaUrl ?? row.thumbnailUrl;
-      current.spend += numberMetric(row.metrics, "spend");
-      current.impressions += numberMetric(row.metrics, "impressions");
-      current.clicks += numberMetric(row.metrics, "clicks");
-      current.results += numberMetric(row.metrics, resultMetric);
-      current.sourceRows += 1;
-      aggregateMap.set(key, current);
-    }
-
-    const aggregates = Array.from(aggregateMap.values()).sort((left, right) => {
-      const leftValue = sortValue(left, sort);
-      const rightValue = sortValue(right, sort);
-      if (leftValue === null && rightValue === null) return left.key.localeCompare(right.key, "uk-UA");
-      if (leftValue === null) return 1;
-      if (rightValue === null) return -1;
-      const diff = leftValue - rightValue;
-      return sortDirection === "asc" ? diff : -diff;
-    });
-
-    const totals = aggregates.reduce((accumulator, row) => {
-      accumulator.spend += row.spend;
-      accumulator.impressions += row.impressions;
-      accumulator.clicks += row.clicks;
-      accumulator.results += row.results;
-      return accumulator;
-    }, { spend: 0, impressions: 0, clicks: 0, results: 0 });
-
+    const tree = buildTree(filtered, groups, resultMetric);
     const currency = project.currency ?? "USD";
-    const totalCtr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
-    const totalCpc = totals.clicks > 0 ? totals.spend / totals.clicks : null;
-    const totalCpa = totals.results > 0 ? totals.spend / totals.results : null;
+    const creativeCount = new Set(filtered.map(({ dimensions }) => dimensions.creative)).size;
 
     return (
       <main className="trackerPage">
         <header className="trackerHeader">
           <div className="trackerTitle">
             <span>ID: {project.id.slice(0, 8).toUpperCase()}</span>
-            <strong>{project.name.toLocaleUpperCase("uk-UA")} · CREATIVE REPORT</strong>
+            <strong>{project.name.toLocaleUpperCase("uk-UA")} · REPORT</strong>
           </div>
           <div className="trackerHeaderActions">
             <Link className="trackerButton trackerButtonGhost" href={`/projects/${project.id}`}>До проєкту</Link>
@@ -412,7 +549,7 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
           ))}
           <Link
             className={`savedReportLink ${offerFilter === "" ? "isActive" : ""}`}
-            href={`/projects/${project.id}/analytics?from=${from}&to=${to}`}
+            href={allOffersHref(project.id, from, to)}
           >
             Усі офери
           </Link>
@@ -441,19 +578,16 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
                 {accounts.map((value) => <option value={value} key={value}>{value}</option>)}
               </select>
             </label>
-            <label className="trackerField trackerFieldWide">
-              <span>Кампанія</span>
-              <select name="campaign" defaultValue={campaignFilter}>
-                <option value="">Усі кампанії</option>
-                {campaignNames.map((value) => <option value={value} key={value}>{value}</option>)}
-              </select>
+            <label className="trackerField trackerSearch">
+              <span>Пошук по крео</span>
+              <input name="search" defaultValue={single(query.search)} placeholder="Назва креативу..." />
             </label>
           </div>
 
-          <div className="trackerControlRow">
-            {[0, 1, 2].map((index) => (
+          <div className="trackerControlRow trackerGroupingRow">
+            {[0, 1, 2, 3, 4].map((index) => (
               <label className="trackerField" key={index}>
-                <span>Групування {index + 1}</span>
+                <span>Рівень {index + 1}</span>
                 <select name={`group${index + 1}`} defaultValue={groups[index] ?? ""}>
                   <option value="">Без групування</option>
                   {GROUP_OPTIONS.map((option) => (
@@ -462,10 +596,6 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
                 </select>
               </label>
             ))}
-            <label className="trackerField trackerSearch">
-              <span>Пошук по крео</span>
-              <input name="search" defaultValue={single(query.search)} placeholder="Назва креативу..." />
-            </label>
           </div>
 
           <div className="trackerControlRow trackerControlRowBottom">
@@ -491,84 +621,33 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
               </select>
             </label>
             <button className="trackerButton trackerButtonGreen" type="submit">Застосувати</button>
-            <Link className="trackerButton trackerButtonGhost" href={`/projects/${project.id}/analytics`}>Скинути</Link>
+            <Link className="trackerButton trackerButtonGhost" href={allOffersHref(project.id, from, to)}>Скинути</Link>
           </div>
         </form>
 
         <div className="trackerStatusBar">
-          <span>Креативів: <strong>{aggregates.length}</strong></span>
+          <span>Креативів із даними: <strong>{creativeCount}</strong></span>
           <span>Денних фактів: <strong>{filtered.length}</strong></span>
           <span>Період: <strong>{from} — {to}</strong></span>
           <span>Результат: <strong>{resultMetric}</strong></span>
+          <span>Дерево: <strong>{groups.length ? groups.map(dimensionLabel).join(" → ") : "тільки total"}</strong></span>
         </div>
 
-        <section className="trackerTablePanel">
-          <div className="trackerTableWrap">
-            <table className="trackerTable">
-              <thead>
-                <tr>
-                  {groups.map((group) => <th key={group}>{dimensionLabel(group)}</th>)}
-                  <th>Креатив</th>
-                  <th>Спенд</th>
-                  <th>Покази</th>
-                  <th>Кліки</th>
-                  <th>Результати</th>
-                  <th>CTR</th>
-                  <th>CPC</th>
-                  <th>CPA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {aggregates.slice(0, 1000).map((row) => {
-                  const ctr = row.impressions > 0 ? (row.clicks / row.impressions) * 100 : 0;
-                  const cpc = row.clicks > 0 ? row.spend / row.clicks : null;
-                  const cpa = row.results > 0 ? row.spend / row.results : null;
-                  return (
-                    <tr key={row.key}>
-                      {groups.map((group) => (
-                        <td className={group === "offer" ? "trackerOfferCell" : ""} key={group}>
-                          {group === "offer" ? (
-                            <span className="trackerOfferValue"><i className={offerClass(row.dimensions.offer)} />{row.dimensions.offer}</span>
-                          ) : row.dimensions[group]}
-                        </td>
-                      ))}
-                      <td>
-                        <div className="trackerCreativeCell">
-                          {row.previewUrl ? <img src={row.previewUrl} alt="" loading="lazy" /> : <span className="trackerCreativeFallback">—</span>}
-                          <div>
-                            <strong>{row.dimensions.creative}</strong>
-                            <small>{row.sourceRows} денних рядків</small>
-                          </div>
-                        </div>
-                      </td>
-                      <td>{money(row.spend, currency)}</td>
-                      <td>{rounded(row.impressions, 0)}</td>
-                      <td>{rounded(row.clicks, 0)}</td>
-                      <td>{rounded(row.results, 0)}</td>
-                      <td>{rounded(ctr)}%</td>
-                      <td>{cpc === null ? "—" : money(cpc, currency)}</td>
-                      <td>{cpa === null ? "—" : money(cpa, currency)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colSpan={groups.length + 1}>Всього</td>
-                  <td>{money(totals.spend, currency)}</td>
-                  <td>{rounded(totals.impressions, 0)}</td>
-                  <td>{rounded(totals.clicks, 0)}</td>
-                  <td>{rounded(totals.results, 0)}</td>
-                  <td>{rounded(totalCtr)}%</td>
-                  <td>{totalCpc === null ? "—" : money(totalCpc, currency)}</td>
-                  <td>{totalCpa === null ? "—" : money(totalCpa, currency)}</td>
-                </tr>
-              </tfoot>
-            </table>
+        <section className="trackerTreePanel">
+          <div className="trackerTreeHeader trackerTreeRow">
+            <span>Групування</span>
+            <span>Спенд</span>
+            <span>Покази</span>
+            <span>Кліки</span>
+            <span>Результати</span>
+            <span>CTR</span>
+            <span>CPC</span>
+            <span>CPA</span>
           </div>
-
-          {aggregates.length === 0 && <div className="trackerEmpty">За цими фільтрами немає даних.</div>}
-          {aggregates.length > 1000 && <div className="trackerWarning">Показано перші 1000 рядків. Звузь період або додай фільтр.</div>}
+          <div className="trackerTreeBody">
+            <TreeNodeView node={tree} currency={currency} sort={sort} order={sortDirection} />
+          </div>
+          {filtered.length === 0 && <div className="trackerEmpty">За цими фільтрами немає даних.</div>}
         </section>
       </main>
     );
