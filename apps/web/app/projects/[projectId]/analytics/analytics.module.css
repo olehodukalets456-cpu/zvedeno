@@ -161,12 +161,8 @@
   margin-bottom: 8px;
 }
 
-:global(.trackerGroupingRow) {
-  grid-template-columns: repeat(5, minmax(145px, 1fr));
-}
-
 :global(.trackerControlRowBottom) {
-  grid-template-columns: 140px 140px 165px 165px auto auto;
+  grid-template-columns: 190px 140px 140px 155px 155px minmax(150px, 1fr) minmax(120px, .95fr);
   align-items: end;
   margin-bottom: 0;
 }
@@ -177,7 +173,8 @@
   min-width: 0;
 }
 
-:global(.trackerField > span) {
+:global(.trackerField > span),
+:global(.trackerGroupingLabel) {
   color: #8e8e8e;
   font-size: 10px;
   font-weight: 700;
@@ -202,6 +199,98 @@
 :global(.trackerField select:focus) {
   border-color: #5bbd68;
   box-shadow: 0 0 0 1px rgba(91, 189, 104, .2);
+}
+
+:global(.trackerGroupingBuilder) {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+:global(.trackerGroupingSequence) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 35px;
+  overflow-x: auto;
+  padding-bottom: 1px;
+}
+
+:global(.trackerGroupingChip) {
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid #484848;
+  border-radius: 3px;
+  background: #303030;
+}
+
+:global(.trackerGroupingChip select),
+:global(.trackerGroupingAdd) {
+  min-width: 145px;
+  height: 32px;
+  padding: 0 9px;
+  border: 0;
+  outline: none;
+  background: #303030;
+  color: #e0e0e0;
+  font: 12px Arial, Helvetica, sans-serif;
+  cursor: pointer;
+}
+
+:global(.trackerGroupingAdd) {
+  flex: 0 0 150px;
+  border: 1px dashed #555;
+  border-radius: 3px;
+  background: #292929;
+  color: #bdbdbd;
+}
+
+:global(.trackerGroupingAdd:hover) {
+  border-color: #5bbd68;
+  color: #e9e9e9;
+}
+
+:global(.trackerGroupingMove),
+:global(.trackerGroupingRemove) {
+  width: 27px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid #474747;
+  background: #383838;
+  color: #bcbcbc;
+  font: 700 15px Arial, Helvetica, sans-serif;
+  cursor: pointer;
+}
+
+:global(.trackerGroupingRemove) {
+  border-right: 0;
+  border-left: 1px solid #474747;
+  color: #d29a9a;
+}
+
+:global(.trackerGroupingMove:hover:not(:disabled)),
+:global(.trackerGroupingRemove:hover) {
+  background: #444;
+  color: #fff;
+}
+
+:global(.trackerGroupingMove:disabled) {
+  color: #5a5a5a;
+  cursor: default;
+}
+
+:global(.trackerGroupingEmpty) {
+  color: #777;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+:global(.trackerApplyButton),
+:global(.trackerResetButton) {
+  width: 100%;
 }
 
 :global(.trackerStatusBar) {
@@ -234,15 +323,17 @@
   background: #202020;
 }
 
-:global(.trackerTreeBody) {
+:global(.trackerTreeScroll) {
   max-height: 72vh;
   overflow: auto;
 }
 
+:global(.trackerTreeBody) {
+  min-width: max-content;
+}
+
 :global(.trackerTreeRow) {
   display: grid;
-  grid-template-columns: minmax(360px, 1fr) repeat(7, minmax(92px, 112px));
-  min-width: 1120px;
   min-height: 42px;
   border-bottom: 1px solid #343434;
   background: #212121;
@@ -261,19 +352,34 @@
 }
 
 :global(.trackerTreeHeader > span),
-:global(.trackerTreeRow > .trackerMetric) {
+:global(.trackerTreeRow > .trackerMetric),
+:global(.trackerDimensionCell) {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  min-width: 0;
   padding: 0 9px;
   border-left: 1px solid #343434;
+}
+
+:global(.trackerTreeHeader > span),
+:global(.trackerTreeRow > .trackerMetric) {
+  justify-content: flex-end;
   text-align: right;
   white-space: nowrap;
 }
 
-:global(.trackerTreeHeader > span:first-child) {
-  justify-content: flex-start;
+:global(.trackerDimensionHeader) {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+:global(.trackerTreeHeader > span:first-child),
+:global(.trackerTreeRow > .trackerDimensionCell:first-child) {
   border-left: 0;
+}
+
+:global(.trackerDimensionCellEmpty) {
+  background: rgba(255, 255, 255, .006);
 }
 
 :global(.trackerTreeDetails) {
@@ -309,7 +415,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding-right: 12px;
+  width: 100%;
 }
 
 :global(.trackerTreeCaret) {
@@ -376,17 +482,20 @@
   text-align: center;
 }
 
+@media (max-width: 1280px) {
+  :global(.trackerControlRowBottom) {
+    grid-template-columns: repeat(4, minmax(140px, 1fr));
+  }
+}
+
 @media (max-width: 1120px) {
   :global(.trackerControlRow) {
     grid-template-columns: 1fr 1fr;
   }
 
-  :global(.trackerGroupingRow) {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  :global(.trackerControlRowBottom) {
-    grid-template-columns: repeat(4, 1fr);
+  :global(.trackerGroupingSequence) {
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
 }
 
@@ -402,12 +511,25 @@
   }
 
   :global(.trackerControlRow),
-  :global(.trackerGroupingRow),
   :global(.trackerControlRowBottom) {
     grid-template-columns: 1fr;
   }
 
   :global(.savedReportsLabel) {
     display: none;
+  }
+
+  :global(.trackerGroupingSequence) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  :global(.trackerGroupingChip),
+  :global(.trackerGroupingAdd) {
+    width: 100%;
+  }
+
+  :global(.trackerGroupingChip select) {
+    flex: 1 1 auto;
   }
 }
