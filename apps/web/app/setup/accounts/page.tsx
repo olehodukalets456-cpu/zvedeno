@@ -1,6 +1,21 @@
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
-import { adAccounts, createDatabase, projects, workspaces } from "@zvedeno/database";
+import {
+  adAccounts,
+  createDatabase,
+  projectAdAccounts,
+  projects,
+  workspaces
+} from "@zvedeno/database";
+import { AccountSelector, type SetupAccountOption } from "./account-selector";
+
+type AccountsSetupPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function single(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
 
 function defaultStartDate(): string {
   const date = new Date();
@@ -8,7 +23,8 @@ function defaultStartDate(): string {
   return date.toISOString().slice(0, 10);
 }
 
-export default async function AccountsSetupPage() {
+export default async function AccountsSetupPage({ searchParams }: AccountsSetupPageProps) {
+  const query = await searchParams;
   const { db, pool } = createDatabase();
   try {
     const workspaceSlug = process.env.DEFAULT_WORKSPACE_SLUG ?? "personal";
@@ -39,6 +55,42 @@ export default async function AccountsSetupPage() {
           .where(eq(projects.workspaceId, workspace.id))
           .orderBy(asc(projects.name))
       : [];
+    const accountLinks = workspace
+      ? await db
+          .select({
+            accountId: projectAdAccounts.adAccountId,
+            projectId: projects.id,
+            projectName: projects.name
+          })
+          .from(projectAdAccounts)
+          .innerJoin(projects, eq(projectAdAccounts.projectId, projects.id))
+          .where(eq(projects.workspaceId, workspace.id))
+      : [];
+
+    const linkedProjectsByAccount = new Map<string, Array<{ id: string; name: string }>>();
+    for (const link of accountLinks) {
+      const current = linkedProjectsByAccount.get(link.accountId) ?? [];
+      if (!current.some((project) => project.id === link.projectId)) {
+        current.push({ id: link.projectId, name: link.projectName });
+      }
+      linkedProjectsByAccount.set(link.accountId, current);
+    }
+
+    const accountOptions: SetupAccountOption[] = accounts.map((account) => ({
+      ...account,
+      status: String(account.status),
+      linkedProjects: linkedProjectsByAccount.get(account.id) ?? []
+    }));
+
+    const refreshStatus = single(query.refresh);
+    const discoveryStatus = single(query.meta);
+    const discoveredAccounts = single(query.accounts);
+    const directAccounts = single(query.direct);
+    const businesses = single(query.businesses);
+    const ownedAccounts = single(query.owned);
+    const clientAccounts = single(query.client);
+    const warnings = single(query.warnings);
+    const errors = single(query.errors);
 
     return (
       <main className="setupMain">
@@ -51,59 +103,36 @@ export default async function AccountsSetupPage() {
           </p>
         </header>
 
+        <section className="formSection">
+          <div className="formHeading">
+            <span>Meta</span>
+            <h2>Оновити доступні рекламні кабінети</h2>
+          </div>
+          <p>
+            Перевіряємо особисті кабінети, власні кабінети Business Manager і партнерські клієнтські кабінети.
+          </p>
+          <form action="/api/integrations/meta/accounts/refresh" method="post">
+            <button className="primaryButton" type="submit">Оновити список кабінетів</button>
+          </form>
+
+          {(refreshStatus || discoveryStatus === "connected") && (
+            <p>
+              {refreshStatus === "failed"
+                ? "Оновлення не вдалося. Перевіримо токен і доступи Meta."
+                : `Знайдено ${discoveredAccounts || accounts.length} кабінетів: напряму ${directAccounts || "—"}, Business Manager ${businesses || "—"}, власних ${ownedAccounts || "—"}, партнерських ${clientAccounts || "—"}. Попереджень: ${warnings || "0"}${errors ? `, помилок: ${errors}` : ""}.`}
+            </p>
+          )}
+        </section>
+
         {accounts.length === 0 ? (
           <section className="emptyState">
             <h2>Рекламні кабінети ще не знайдені</h2>
-            <p>Повернись назад і підключи Meta.</p>
+            <p>Повернись назад і підключи Meta або онови список вище.</p>
             <Link className="primaryButton" href="/setup">Підключити Meta</Link>
           </section>
         ) : (
           <form className="projectForm" action="/api/projects" method="post">
-            <section className="formSection twoColumns">
-              <div>
-                <div className="formHeading">
-                  <span>Продовжити</span>
-                  <h2>Додати кабінет до існуючого проєкту</h2>
-                </div>
-                <label className="fieldLabel">
-                  Існуючий проєкт
-                  <select name="existingProjectId" defaultValue="">
-                    <option value="">Створити новий проєкт</option>
-                    {existingProjects.map((project) => (
-                      <option value={project.id} key={project.id}>{project.name}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div>
-                <div className="formHeading">
-                  <span>Новий</span>
-                  <h2>Або створи новий проєкт</h2>
-                </div>
-                <label className="fieldLabel">
-                  Назва нового проєкту
-                  <input name="projectName" placeholder="Наприклад, DMND" />
-                </label>
-              </div>
-            </section>
-
-            <section className="formSection">
-              <div className="formHeading">
-                <span>Джерела</span>
-                <h2>Які рекламні кабінети належать цьому проєкту?</h2>
-              </div>
-              <div className="accountGrid">
-                {accounts.map((account) => (
-                  <label className="accountOption" key={account.id}>
-                    <input type="checkbox" name="accountIds" value={account.id} />
-                    <div>
-                      <strong>{account.name}</strong>
-                      <small>{account.externalId} · {account.currency ?? "—"} · {account.status}</small>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </section>
+            <AccountSelector projects={existingProjects} accounts={accountOptions} />
 
             <section className="formSection twoColumns">
               <div>

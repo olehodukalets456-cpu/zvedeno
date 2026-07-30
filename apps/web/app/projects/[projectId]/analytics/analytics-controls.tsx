@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type AnalyticsGroupOption = {
   value: string;
@@ -26,11 +26,20 @@ type DateRangePickerProps = {
   initialTo: string;
 };
 
+function sameValues(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 export function GroupingBuilder({ options, initialGroups }: GroupingBuilderProps) {
   const allowedValues = useMemo(() => new Set(options.map((option) => option.value)), [options]);
-  const [groups, setGroups] = useState(() => (
+  const normalizedInitialGroups = useMemo(() => (
     initialGroups.filter((value, index, values) => allowedValues.has(value) && values.indexOf(value) === index)
-  ));
+  ), [allowedValues, initialGroups]);
+  const [groups, setGroups] = useState<string[]>(normalizedInitialGroups);
+
+  useEffect(() => {
+    setGroups((current) => sameValues(current, normalizedInitialGroups) ? current : normalizedInitialGroups);
+  }, [normalizedInitialGroups]);
 
   const unusedOptions = options.filter((option) => !groups.includes(option.value));
 
@@ -160,6 +169,12 @@ export function DateRangePicker({
   const [preset, setPreset] = useState(initialPreset);
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
+
+  useEffect(() => {
+    setPreset(initialPreset);
+    setFrom(initialFrom);
+    setTo(initialTo);
+  }, [initialFrom, initialPreset, initialTo]);
 
   function selectPreset(value: string) {
     setPreset(value);
