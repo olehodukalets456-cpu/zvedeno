@@ -9,5 +9,6 @@ run("node scripts/patch-confusable-direction-tabs.mjs");
 run("node scripts/patch-strict-result-metric.mjs");
 run("node scripts/patch-job-funnel-column.mjs");
 run("node scripts/patch-report-date-format.mjs");
+run("node scripts/patch-analytics-linked-account-filter.mjs");
 run("npx -y pnpm@9.15.9 --filter @zvedeno/database exec drizzle-kit push --force");
 run("npx -y pnpm@9.15.9 --filter @zvedeno/web build");
