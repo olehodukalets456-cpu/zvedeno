@@ -45,6 +45,14 @@ export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
   const inactiveAccounts = useMemo(() => (
     accounts.filter((account) => account.status !== "active" && accountMatches(account, normalizedSearch))
   ), [accounts, normalizedSearch]);
+  const linkedAccountIds = useMemo(() => new Set(
+    selectedProjectId
+      ? accounts
+          .filter((account) => account.linkedProjects.some((project) => project.id === selectedProjectId))
+          .map((account) => account.id)
+      : []
+  ), [accounts, selectedProjectId]);
+  const newSelectionCount = Array.from(selectedAccountIds).filter((id) => !linkedAccountIds.has(id)).length;
 
   function selectProject(projectId: string) {
     setSelectedProjectId(projectId);
@@ -58,6 +66,7 @@ export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
   }
 
   function toggleAccount(accountId: string) {
+    if (linkedAccountIds.has(accountId)) return;
     setSelectedAccountIds((current) => {
       const next = new Set(current);
       if (next.has(accountId)) next.delete(accountId);
@@ -68,10 +77,12 @@ export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
 
   function renderAccount(account: SetupAccountOption) {
     const linkedNames = account.linkedProjects.map((project) => project.name).join(", ");
+    const alreadyLinked = linkedAccountIds.has(account.id);
     return (
-      <label className="accountOption" key={account.id}>
+      <label className={`accountOption ${alreadyLinked ? "isLinked" : ""}`} key={account.id}>
         <input
           checked={selectedAccountIds.has(account.id)}
+          disabled={alreadyLinked}
           name="accountIds"
           onChange={() => toggleAccount(account.id)}
           type="checkbox"
@@ -82,6 +93,7 @@ export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
           <small>
             {account.externalId} · {account.currency ?? "—"} · {account.status}
             {linkedNames ? ` · у проєкті: ${linkedNames}` : ""}
+            {alreadyLinked ? " · уже підключений" : ""}
           </small>
         </div>
       </label>
@@ -111,7 +123,7 @@ export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
           </label>
           {selectedProjectId && (
             <p>
-              Уже прив’язані кабінети відмічені автоматично. Додай нові або зніми зайві позначки перед збереженням.
+              Уже прив’язані кабінети позначені та заблоковані від випадкової зміни. Тут обери лише нові кабінети для проєкту.
             </p>
           )}
         </div>
@@ -148,7 +160,8 @@ export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
         <p>
           Активних: <strong>{accounts.filter((account) => account.status === "active").length}</strong> ·
           недоступних або заблокованих: <strong>{accounts.filter((account) => account.status !== "active").length}</strong> ·
-          вибрано: <strong>{selectedAccountIds.size}</strong>
+          уже в проєкті: <strong>{linkedAccountIds.size}</strong> ·
+          вибрано нових: <strong>{newSelectionCount}</strong>
         </p>
 
         <div className="accountGrid">
