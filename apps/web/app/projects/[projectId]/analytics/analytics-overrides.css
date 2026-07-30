@@ -6,3 +6,58 @@
 .trackerTreeHeader {
   top: 0;
 }
+
+.trackerControlRowPrimary {
+  grid-template-columns: 180px minmax(320px, 2fr) minmax(250px, 1fr);
+}
+
+.trackerControlRowPrimary .trackerSearch {
+  grid-column: 2;
+}
+
+.trackerControlRowPrimary .trackerFieldWide {
+  grid-column: 3;
+}
+
+.trackerOffer {
+  width: 9px;
+  height: 9px;
+}
+
+.trackerTreeRow {
+  min-height: 50px;
+}
+
+.trackerTreePreview,
+.trackerCreativeFallback {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+}
+
+.trackerTreeCaret {
+  width: 12px;
+  flex-basis: 12px;
+  font-size: 11px;
+}
+
+.trackerTreeLabel {
+  gap: 10px;
+}
+
+@media (max-width: 1120px) {
+  .trackerControlRowPrimary {
+    grid-template-columns: minmax(150px, .65fr) minmax(280px, 1.6fr) minmax(220px, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .trackerControlRowPrimary {
+    grid-template-columns: 1fr;
+  }
+
+  .trackerControlRowPrimary .trackerSearch,
+  .trackerControlRowPrimary .trackerFieldWide {
+    grid-column: auto;
+  }
+}
