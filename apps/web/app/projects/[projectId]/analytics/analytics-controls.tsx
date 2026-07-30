@@ -74,80 +74,54 @@ export function GroupingBuilder({ options, initialGroups }: GroupingBuilderProps
     setGroups((current) => current.filter((_, currentIndex) => currentIndex !== index));
   }
 
-  function moveGroup(index: number, direction: -1 | 1) {
-    setGroups((current) => {
-      const target = index + direction;
-      if (target < 0 || target >= current.length) return current;
-      const currentValue = current[index];
-      const targetValue = current[target];
-      if (currentValue === undefined || targetValue === undefined) return current;
-      const next = [...current];
-      next[index] = targetValue;
-      next[target] = currentValue;
-      return next;
-    });
-  }
-
   return (
     <div className="trackerGroupingBuilder">
       <span className="trackerGroupingLabel">Групування</span>
 
       <div className="trackerGroupingSequence">
         {groups.map((group, index) => (
-          <div className="trackerGroupingChip" key={`${group}-${index}`}>
-            <button
-              aria-label="Перемістити групування ліворуч"
-              className="trackerGroupingMove"
-              disabled={index === 0}
-              onClick={() => moveGroup(index, -1)}
-              type="button"
-            >
-              ‹
-            </button>
-            <select
-              aria-label={`Групування ${index + 1}`}
-              onChange={(event) => replaceGroup(index, event.target.value)}
-              value={group}
-            >
-              {options.map((option) => (
-                <option value={option.value} key={option.value}>{option.label}</option>
-              ))}
-            </select>
-            <button
-              aria-label="Перемістити групування праворуч"
-              className="trackerGroupingMove"
-              disabled={index === groups.length - 1}
-              onClick={() => moveGroup(index, 1)}
-              type="button"
-            >
-              ›
-            </button>
-            <button
-              aria-label="Прибрати групування"
-              className="trackerGroupingRemove"
-              onClick={() => removeGroup(index)}
-              type="button"
-            >
-              ×
-            </button>
+          <div className="trackerGroupingSlot" key={`${group}-${index}`}>
+            {index > 0 && <span aria-hidden="true" className="trackerGroupingArrow">›</span>}
+            <div className="trackerGroupingChip">
+              <select
+                aria-label={`Групування ${index + 1}`}
+                onChange={(event) => replaceGroup(index, event.target.value)}
+                value={group}
+              >
+                {options.map((option) => (
+                  <option value={option.value} key={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <button
+                aria-label="Прибрати групування"
+                className="trackerGroupingRemove"
+                onClick={() => removeGroup(index)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
           </div>
         ))}
 
         {unusedOptions.length > 0 && (
-          <select
-            aria-label="Додати групування"
-            className="trackerGroupingAdd"
-            onChange={(event) => {
-              addGroup(event.target.value);
-              event.target.value = "";
-            }}
-            value=""
-          >
-            <option value="">+ Групування</option>
-            {unusedOptions.map((option) => (
-              <option value={option.value} key={option.value}>{option.label}</option>
-            ))}
-          </select>
+          <div className="trackerGroupingSlot trackerGroupingAddSlot">
+            {groups.length > 0 && <span aria-hidden="true" className="trackerGroupingArrow">›</span>}
+            <select
+              aria-label="Додати групування"
+              className="trackerGroupingAdd"
+              onChange={(event) => {
+                addGroup(event.target.value);
+                event.target.value = "";
+              }}
+              value=""
+            >
+              <option value="">Групування</option>
+              {unusedOptions.map((option) => (
+                <option value={option.value} key={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
         )}
 
         {groups.length === 0 && <span className="trackerGroupingEmpty">Буде показано лише total</span>}
@@ -184,6 +158,8 @@ export function DateRangePicker({
     setTo(selected.to);
   }
 
+  const isCustom = preset === "custom";
+
   return (
     <>
       <label className="trackerField trackerRangePreset">
@@ -195,31 +171,42 @@ export function DateRangePicker({
         </select>
       </label>
 
-      <label className="trackerField trackerDate">
-        <span>Від</span>
-        <input
-          name="from"
-          onChange={(event) => {
-            setFrom(event.target.value);
-            setPreset("custom");
-          }}
-          type="date"
-          value={from}
-        />
-      </label>
+      {isCustom ? (
+        <>
+          <label className="trackerField trackerDate">
+            <span>Від</span>
+            <input
+              aria-label="Дата від"
+              name="from"
+              onChange={(event) => {
+                setFrom(event.target.value);
+                setPreset("custom");
+              }}
+              type="date"
+              value={from}
+            />
+          </label>
 
-      <label className="trackerField trackerDate">
-        <span>До</span>
-        <input
-          name="to"
-          onChange={(event) => {
-            setTo(event.target.value);
-            setPreset("custom");
-          }}
-          type="date"
-          value={to}
-        />
-      </label>
+          <label className="trackerField trackerDate">
+            <span>До</span>
+            <input
+              aria-label="Дата до"
+              name="to"
+              onChange={(event) => {
+                setTo(event.target.value);
+                setPreset("custom");
+              }}
+              type="date"
+              value={to}
+            />
+          </label>
+        </>
+      ) : (
+        <>
+          <input name="from" type="hidden" value={from} />
+          <input name="to" type="hidden" value={to} />
+        </>
+      )}
     </>
   );
 }
