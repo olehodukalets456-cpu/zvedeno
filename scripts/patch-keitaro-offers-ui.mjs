@@ -146,8 +146,8 @@ replaceOnce(
 );
 
 replaceOnce(
-  `<details className={\`trackerTreeDetails ${node.depth === 0 ? "trackerTreeRoot" : ""}\`} open={node.depth === 0}>`,
-  `<details className={\`trackerTreeDetails ${node.depth === 0 ? "trackerTreeRoot" : ""}\`} open>`,
+  '<details className={`trackerTreeDetails ${node.depth === 0 ? "trackerTreeRoot" : ""}`} open={node.depth === 0}>',
+  '<details className={`trackerTreeDetails ${node.depth === 0 ? "trackerTreeRoot" : ""}`} open>',
   "auto-expand grouping rows"
 );
 
