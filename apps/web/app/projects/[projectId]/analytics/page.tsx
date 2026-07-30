@@ -732,7 +732,8 @@ export default async function AnalyticsPage({ params, searchParams }: AnalyticsP
         ? { ...preset, from: range.from, to: range.to }
         : preset
     ));
-    const resetReport = SAVED_REPORTS.find((report) => report.key === "all") ?? SAVED_REPORTS[0];
+    const resetReport = SAVED_REPORTS.find((report) => report.key === "all");
+    if (!resetReport) throw new Error("Не знайдено базовий пресет звіту");
 
     return (
       <main className="trackerPage">
