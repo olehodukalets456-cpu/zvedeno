@@ -121,9 +121,12 @@ export default async function ProjectPage({ params, searchParams }: ProjectPageP
             <h1>{project.name}</h1>
             <p>{project.currency ?? "—"} · {project.timezone} · {insights.length} денних фактів</p>
           </div>
-          <form action={`/api/projects/${project.id}/sync`} method="post">
-            <button className="primaryButton" type="submit">Оновити зараз</button>
-          </form>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Link className="primaryButton" href={`/projects/${project.id}/analytics`}>Відкрити аналітику</Link>
+            <form action={`/api/projects/${project.id}/sync`} method="post">
+              <button className="secondaryButton" type="submit">Оновити зараз</button>
+            </form>
+          </div>
         </header>
 
         {query.report === "created" && (
