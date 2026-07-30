@@ -96,12 +96,11 @@ replaceOnce(
 "funnel header"
 );
 
+replaceOnce("!N2`,", "!O2`,", "manual CPA range");
 replaceOnce(
-`      range: \`'\${escapeSheetTitle(item.tab)}'!N2\`,
-      values: [["=ARRAYFORMULA(IF(A2:A=\"\",\"\",IF(M2:M>0,G2:G/M2:M,\"\")))"]]`,
-`      range: \`'\${escapeSheetTitle(item.tab)}'!O2\`,
-      values: [["=ARRAYFORMULA(IF(A2:A=\"\",\"\",IF(N2:N>0,H2:H/N2:N,\"\")))"]]`,
-"manual CPA formula"
+  "IF(M2:M>0,G2:G/M2:M",
+  "IF(N2:N>0,H2:H/N2:N",
+  "manual CPA formula"
 );
 
 source = source.replaceAll("endColumnIndex: 15", "endColumnIndex: 16");
