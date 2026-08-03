@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { createDatabase, users, workspaceMembers, workspaces } from "@zvedeno/database";
 import { auth } from "./server";
 
@@ -62,13 +62,11 @@ export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | nul
       .limit(1);
 
     if (!membership) {
-      const [{ count }] = await db
-        .select({ count: users.id })
+      const [summary] = await db
+        .select({ total: count() })
         .from(workspaceMembers)
-        .innerJoin(users, eq(workspaceMembers.userId, users.id))
-        .where(eq(workspaceMembers.workspaceId, workspace.id))
-        .limit(1);
-      const role = count ? "viewer" : "owner";
+        .where(eq(workspaceMembers.workspaceId, workspace.id));
+      const role = Number(summary?.total ?? 0) === 0 ? "owner" : "viewer";
       [membership] = await db
         .insert(workspaceMembers)
         .values({ workspaceId: workspace.id, userId: appUser.id, role })
