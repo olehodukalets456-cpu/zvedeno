@@ -16,7 +16,7 @@ import {
   syncErrors,
   syncRuns
 } from "@zvedeno/database";
-import { MetaClient } from "@zvedeno/meta-api";
+import { MetaApiError, MetaClient } from "@zvedeno/meta-api";
 import { decryptSecret } from "@zvedeno/shared";
 
 type MetaCampaign = {
@@ -106,6 +106,14 @@ type RecipeConfig = {
   metrics?: string[];
 };
 
+type SyncWarning = {
+  stage: string;
+  attemptedFields: string;
+  error: string;
+  status?: number;
+  payload?: unknown;
+};
+
 export type MetaSyncOptions = {
   projectId?: string;
   dateFrom?: string;
@@ -120,7 +128,14 @@ export type MetaSyncSummary = {
   errors: number;
 };
 
-const INSIGHT_FIELDS = [
+const ENRICHED_AD_FIELDS =
+  "id,name,campaign_id,adset_id,status,effective_status,updated_time,creative{id,thumbnail_url,image_url,video_id,object_story_spec,asset_feed_spec}";
+const BASIC_AD_FIELDS =
+  "id,name,campaign_id,adset_id,status,effective_status,updated_time,creative{id}";
+const MINIMAL_AD_FIELDS =
+  "id,name,campaign_id,adset_id,status,effective_status,updated_time";
+
+const FULL_INSIGHT_FIELDS = [
   "date_start",
   "date_stop",
   "account_id",
@@ -149,6 +164,28 @@ const INSIGHT_FIELDS = [
   "video_p75_watched_actions",
   "video_p95_watched_actions",
   "video_p100_watched_actions"
+].join(",");
+
+const CORE_INSIGHT_FIELDS = [
+  "date_start",
+  "date_stop",
+  "account_id",
+  "campaign_id",
+  "campaign_name",
+  "adset_id",
+  "adset_name",
+  "ad_id",
+  "ad_name",
+  "spend",
+  "impressions",
+  "reach",
+  "frequency",
+  "clicks",
+  "inline_link_clicks",
+  "cpc",
+  "cpm",
+  "ctr",
+  "actions"
 ].join(",");
 
 function isoDate(value = new Date()): string {
@@ -229,6 +266,72 @@ function extractVideoId(creative: MetaCreative | undefined): string | undefined 
   return videoData?.video_id;
 }
 
+function isFieldFallbackError(error: unknown): boolean {
+  return error instanceof MetaApiError && error.status === 400;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function errorDetails(error: unknown): Record<string, unknown> {
+  if (error instanceof MetaApiError) {
+    return {
+      name: error.name,
+      status: error.status,
+      payload: error.payload
+    };
+  }
+  return {
+    name: error instanceof Error ? error.name : "UnknownError"
+  };
+}
+
+async function forEachWithFieldFallback<T>(
+  client: MetaClient,
+  path: string,
+  params: Record<string, string>,
+  fieldCandidates: string[],
+  stage: string,
+  warnings: SyncWarning[],
+  onItem: (item: T) => Promise<void>
+): Promise<number> {
+  let lastError: unknown;
+
+  for (let index = 0; index < fieldCandidates.length; index += 1) {
+    const fields = fieldCandidates[index]!;
+    let count = 0;
+
+    try {
+      for await (const item of client.paginate<T>(path, { ...params, fields })) {
+        await onItem(item);
+        count += 1;
+      }
+      return count;
+    } catch (error) {
+      lastError = error;
+      const hasFallback = index < fieldCandidates.length - 1;
+      if (!hasFallback || !isFieldFallbackError(error)) throw error;
+
+      warnings.push({
+        stage,
+        attemptedFields: fields,
+        error: errorMessage(error),
+        ...(error instanceof MetaApiError
+          ? { status: error.status, payload: error.payload }
+          : {})
+      });
+      console.warn(`Meta ${stage} fields rejected; retrying with a safer field set`, {
+        path,
+        fields,
+        error: errorMessage(error)
+      });
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`Meta ${stage} sync failed`);
+}
+
 async function loadRecipeConfig(
   db: ReturnType<typeof createDatabase>["db"],
   projectId: string
@@ -270,6 +373,7 @@ export async function syncMetaData(options: MetaSyncOptions = {}): Promise<MetaS
 
     for (const pair of pairs) {
       const now = new Date();
+      const warnings: SyncWarning[] = [];
       const [run] = await db
         .insert(syncRuns)
         .values({
@@ -375,132 +479,142 @@ export async function syncMetaData(options: MetaSyncOptions = {}): Promise<MetaS
         }
 
         const adMap = new Map<string, { adId: string; assetId: string }>();
-        for await (const ad of client.paginate<MetaAd>(`${account}/ads`, {
-          fields: "id,name,campaign_id,adset_id,status,effective_status,updated_time,creative{id,thumbnail_url,image_url,video_id,object_story_spec,asset_feed_spec}",
-          limit: "500"
-        })) {
-          const campaignId = campaignMap.get(ad.campaign_id);
-          const adSetId = adSetMap.get(ad.adset_id);
-          if (!campaignId || !adSetId) continue;
+        const adsReceived = await forEachWithFieldFallback<MetaAd>(
+          client,
+          `${account}/ads`,
+          { limit: "500" },
+          [ENRICHED_AD_FIELDS, BASIC_AD_FIELDS, MINIMAL_AD_FIELDS],
+          "ads",
+          warnings,
+          async (ad) => {
+            const campaignId = campaignMap.get(ad.campaign_id);
+            const adSetId = adSetMap.get(ad.adset_id);
+            if (!campaignId || !adSetId) return;
 
-          const normalizedName = normalizeCreativeName(ad.name);
-          const [savedAd] = await db
-            .insert(ads)
-            .values({
-              workspaceId: pair.workspaceId,
-              adAccountId: pair.accountId,
-              campaignId,
-              adSetId,
-              externalAdId: ad.id,
-              externalCreativeId: ad.creative?.id,
-              name: ad.name,
-              normalizedCreativeName: normalizedName,
-              status: ad.effective_status ?? ad.status,
-              raw: ad
-            })
-            .onConflictDoUpdate({
-              target: [ads.adAccountId, ads.externalAdId],
-              set: {
+            const normalizedName = normalizeCreativeName(ad.name);
+            const [savedAd] = await db
+              .insert(ads)
+              .values({
+                workspaceId: pair.workspaceId,
+                adAccountId: pair.accountId,
                 campaignId,
                 adSetId,
+                externalAdId: ad.id,
                 externalCreativeId: ad.creative?.id,
                 name: ad.name,
                 normalizedCreativeName: normalizedName,
                 status: ad.effective_status ?? ad.status,
-                raw: ad,
-                updatedAt: now
-              }
-            })
-            .returning({ id: ads.id });
-          if (!savedAd) throw new Error(`Failed to save Meta ad ${ad.id}`);
+                raw: ad
+              })
+              .onConflictDoUpdate({
+                target: [ads.adAccountId, ads.externalAdId],
+                set: {
+                  campaignId,
+                  adSetId,
+                  externalCreativeId: ad.creative?.id,
+                  name: ad.name,
+                  normalizedCreativeName: normalizedName,
+                  status: ad.effective_status ?? ad.status,
+                  raw: ad,
+                  updatedAt: now
+                }
+              })
+              .returning({ id: ads.id });
+            if (!savedAd) throw new Error(`Failed to save Meta ad ${ad.id}`);
 
-          const [asset] = await db
-            .insert(mediaAssets)
-            .values({
-              workspaceId: pair.workspaceId,
-              projectId: pair.projectId,
-              canonicalName: ad.name,
-              normalizedName,
-              type: inferAssetType(ad.creative),
-              externalVideoId: extractVideoId(ad.creative),
-              thumbnailUrl: ad.creative?.thumbnail_url ?? ad.creative?.image_url,
-              firstSeenAt: now,
-              lastSeenAt: now
-            })
-            .onConflictDoUpdate({
-              target: [mediaAssets.projectId, mediaAssets.normalizedName],
-              set: {
+            const [asset] = await db
+              .insert(mediaAssets)
+              .values({
+                workspaceId: pair.workspaceId,
+                projectId: pair.projectId,
                 canonicalName: ad.name,
+                normalizedName,
                 type: inferAssetType(ad.creative),
                 externalVideoId: extractVideoId(ad.creative),
                 thumbnailUrl: ad.creative?.thumbnail_url ?? ad.creative?.image_url,
-                lastSeenAt: now,
-                updatedAt: now
-              }
-            })
-            .returning({ id: mediaAssets.id });
-          if (!asset) throw new Error(`Failed to save media asset for ad ${ad.id}`);
+                firstSeenAt: now,
+                lastSeenAt: now
+              })
+              .onConflictDoUpdate({
+                target: [mediaAssets.projectId, mediaAssets.normalizedName],
+                set: {
+                  canonicalName: ad.name,
+                  type: inferAssetType(ad.creative),
+                  externalVideoId: extractVideoId(ad.creative),
+                  thumbnailUrl: ad.creative?.thumbnail_url ?? ad.creative?.image_url,
+                  lastSeenAt: now,
+                  updatedAt: now
+                }
+              })
+              .returning({ id: mediaAssets.id });
+            if (!asset) throw new Error(`Failed to save media asset for ad ${ad.id}`);
 
-          await db
-            .insert(adMediaAssets)
-            .values({ adId: savedAd.id, mediaAssetId: asset.id })
-            .onConflictDoNothing();
+            await db
+              .insert(adMediaAssets)
+              .values({ adId: savedAd.id, mediaAssetId: asset.id })
+              .onConflictDoNothing();
 
-          adMap.set(ad.id, { adId: savedAd.id, assetId: asset.id });
-        }
+            adMap.set(ad.id, { adId: savedAd.id, assetId: asset.id });
+          }
+        );
 
-        let received = 0;
-        for await (const insight of client.paginate<MetaInsight>(`${account}/insights`, {
-          level: "ad",
-          time_increment: "1",
-          time_range: JSON.stringify({ since: dateFrom, until: today }),
-          fields: INSIGHT_FIELDS,
-          limit: "500"
-        })) {
-          if (!insight.ad_id || !insight.date_start) continue;
-          const localAd = adMap.get(insight.ad_id);
-          const campaignId = insight.campaign_id ? campaignMap.get(insight.campaign_id) : undefined;
-          const adSetId = insight.adset_id ? adSetMap.get(insight.adset_id) : undefined;
-          const factKey = [
-            pair.projectId,
-            pair.accountId,
-            insight.date_start,
-            insight.ad_id,
-            "none",
-            "default"
-          ].join(":");
+        const received = await forEachWithFieldFallback<MetaInsight>(
+          client,
+          `${account}/insights`,
+          {
+            level: "ad",
+            time_increment: "1",
+            time_range: JSON.stringify({ since: dateFrom, until: today }),
+            limit: "500"
+          },
+          [FULL_INSIGHT_FIELDS, CORE_INSIGHT_FIELDS],
+          "insights",
+          warnings,
+          async (insight) => {
+            if (!insight.ad_id || !insight.date_start) return;
+            const localAd = adMap.get(insight.ad_id);
+            const campaignId = insight.campaign_id ? campaignMap.get(insight.campaign_id) : undefined;
+            const adSetId = insight.adset_id ? adSetMap.get(insight.adset_id) : undefined;
+            const factKey = [
+              pair.projectId,
+              pair.accountId,
+              insight.date_start,
+              insight.ad_id,
+              "none",
+              "default"
+            ].join(":");
 
-          await db
-            .insert(dailyInsights)
-            .values({
-              workspaceId: pair.workspaceId,
-              projectId: pair.projectId,
-              adAccountId: pair.accountId,
-              campaignId,
-              adSetId,
-              adId: localAd?.adId,
-              mediaAssetId: localAd?.assetId,
-              insightDate: insight.date_start,
-              factKey,
-              entityLevel: "ad",
-              entityExternalId: insight.ad_id,
-              metrics: insightMetrics(insight),
-              sourceUpdatedAt: now
-            })
-            .onConflictDoUpdate({
-              target: [dailyInsights.workspaceId, dailyInsights.factKey],
-              set: {
+            await db
+              .insert(dailyInsights)
+              .values({
+                workspaceId: pair.workspaceId,
+                projectId: pair.projectId,
+                adAccountId: pair.accountId,
                 campaignId,
                 adSetId,
                 adId: localAd?.adId,
                 mediaAssetId: localAd?.assetId,
+                insightDate: insight.date_start,
+                factKey,
+                entityLevel: "ad",
+                entityExternalId: insight.ad_id,
                 metrics: insightMetrics(insight),
-                sourceUpdatedAt: now,
-                updatedAt: now
-              }
-            });
-          received += 1;
-        }
+                sourceUpdatedAt: now
+              })
+              .onConflictDoUpdate({
+                target: [dailyInsights.workspaceId, dailyInsights.factKey],
+                set: {
+                  campaignId,
+                  adSetId,
+                  adId: localAd?.adId,
+                  mediaAssetId: localAd?.assetId,
+                  metrics: insightMetrics(insight),
+                  sourceUpdatedAt: now,
+                  updatedAt: now
+                }
+              });
+          }
+        );
 
         summary.insights += received;
         await db
@@ -514,21 +628,45 @@ export async function syncMetaData(options: MetaSyncOptions = {}): Promise<MetaS
             finishedAt: new Date(),
             rowsReceived: received,
             rowsUpdated: received,
-            metadata: { dateFrom, dateTo: today, account: pair.externalAccountId }
+            metadata: {
+              dateFrom,
+              dateTo: today,
+              account: pair.externalAccountId,
+              adsReceived,
+              warnings
+            }
           })
           .where(eq(syncRuns.id, run.id));
       } catch (error) {
         summary.errors += 1;
-        const message = error instanceof Error ? error.message : String(error);
+        const message = errorMessage(error);
+        const details = {
+          account: pair.externalAccountId,
+          projectId: pair.projectId,
+          ...errorDetails(error),
+          warnings
+        };
+        console.error("Meta sync failed", { message, ...details });
         await db.insert(syncErrors).values({
           syncRunId: run.id,
           message,
-          retryable: /429|timeout|temporar/i.test(message),
-          details: { account: pair.externalAccountId }
+          retryable:
+            (error instanceof MetaApiError &&
+              (error.status === 408 || error.status === 429 || error.status >= 500)) ||
+            /429|timeout|temporar/i.test(message),
+          details
         });
         await db
           .update(syncRuns)
-          .set({ status: "failed", finishedAt: new Date() })
+          .set({
+            status: "failed",
+            finishedAt: new Date(),
+            metadata: {
+              account: pair.externalAccountId,
+              warnings,
+              error: message
+            }
+          })
           .where(eq(syncRuns.id, run.id));
       }
     }

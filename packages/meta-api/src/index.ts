@@ -13,13 +13,45 @@ export type MetaPage<T> = {
   };
 };
 
+type MetaErrorBody = {
+  error?: {
+    message?: string;
+    type?: string;
+    code?: number;
+    error_subcode?: number;
+    error_user_title?: string;
+    error_user_msg?: string;
+    fbtrace_id?: string;
+  };
+};
+
+function describePayload(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const body = payload as MetaErrorBody;
+  const error = body.error;
+  if (!error) return null;
+
+  const parts = [
+    error.message,
+    error.type ? `type=${error.type}` : null,
+    typeof error.code === "number" ? `code=${error.code}` : null,
+    typeof error.error_subcode === "number" ? `subcode=${error.error_subcode}` : null,
+    error.error_user_title,
+    error.error_user_msg,
+    error.fbtrace_id ? `trace=${error.fbtrace_id}` : null
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.length ? parts.join(" | ") : null;
+}
+
 export class MetaApiError extends Error {
   constructor(
-    message: string,
+    label: string,
     readonly status: number,
     readonly payload: unknown
   ) {
-    super(message);
+    const detail = describePayload(payload);
+    super(detail ? `${label}: ${detail}` : `${label}: HTTP ${status}`);
     this.name = "MetaApiError";
   }
 }
