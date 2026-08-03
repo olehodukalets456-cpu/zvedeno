@@ -14,6 +14,7 @@ import {
   syncManualWeeklyReports,
   syncMetaData
 } from "@zvedeno/sync-engine";
+import { analyzeProjectReport, LEGACY_DMND_PROJECT_ID } from "../../../lib/project-ai";
 
 function slugify(value: string): string {
   const base = value
@@ -43,7 +44,12 @@ function parseDirectionRules(form: FormData): Array<{ key: string; resultLabel: 
   return result;
 }
 
-function recipeConfig(form: FormData, startDate: string): Record<string, unknown> {
+function recipeConfig(
+  form: FormData,
+  startDate: string,
+  projectBrief: string,
+  useAi: boolean
+): Record<string, unknown> {
   const lookbackDays = Number(form.get("lookbackDays") ?? 28);
   const refreshMinutes = Number(form.get("refreshMinutes") ?? 60);
   const selectedResult = String(form.get("resultMetric") ?? "auto");
@@ -60,13 +66,19 @@ function recipeConfig(form: FormData, startDate: string): Record<string, unknown
           ? "Кліки"
           : "Meta результат",
     directionReportV2: true,
-    directionMode: "campaign_first_word",
+    directionMode: "project_ai_context",
     includeDaily: false,
     includeCreatives: true,
     includeCampaigns: false,
-    includeFunnel: false,
+    includeFunnel: true,
     includeCreativeWeekly: true,
-    hideLegacyTabs: true
+    hideLegacyTabs: true,
+    projectBrief,
+    uiVersion: "ai-v1",
+    aiReport: {
+      status: useAi ? "pending" : "disabled",
+      analyzedAt: null
+    }
   };
   if (selectedResult !== "auto") config.resultMetric = selectedResult;
   if (directions.length > 0) config.directions = directions;
@@ -79,6 +91,8 @@ export async function POST(request: NextRequest) {
   const existingProjectId = String(form.get("existingProjectId") ?? "").trim();
   const accountIds = form.getAll("accountIds").map(String).filter(Boolean);
   const startDate = String(form.get("startDate") ?? "");
+  const projectBrief = String(form.get("projectBrief") ?? "").trim();
+  const useAi = String(form.get("useAi") ?? "on") !== "off";
 
   if ((!existingProjectId && !projectName) || accountIds.length === 0 || !startDate) {
     return NextResponse.redirect(redirectUrl("/setup/accounts?error=missing_fields"), 303);
@@ -155,16 +169,22 @@ export async function POST(request: NextRequest) {
         });
     }
 
-    const config = recipeConfig(form, startDate);
+    const config = project.id === LEGACY_DMND_PROJECT_ID
+      ? recipeConfig(form, startDate, projectBrief, false)
+      : recipeConfig(form, startDate, projectBrief, useAi);
     const [currentRecipe] = await db
       .select({ id: reportRecipes.id, config: reportRecipes.config })
       .from(reportRecipes)
       .where(and(eq(reportRecipes.projectId, project.id), eq(reportRecipes.enabled, true)))
       .limit(1);
     if (currentRecipe) {
+      const currentConfig = currentRecipe.config as Record<string, unknown>;
+      const nextConfig = project.id === LEGACY_DMND_PROJECT_ID
+        ? currentConfig
+        : { ...currentConfig, ...config };
       await db
         .update(reportRecipes)
-        .set({ config: { ...(currentRecipe.config as Record<string, unknown>), ...config }, updatedAt: new Date() })
+        .set({ config: nextConfig, updatedAt: new Date() })
         .where(eq(reportRecipes.id, currentRecipe.id));
     } else {
       await db.insert(reportRecipes).values({
@@ -177,6 +197,17 @@ export async function POST(request: NextRequest) {
 
     const metaSummary = await syncMetaData({ projectId: project.id, dateFrom: startDate, fullBackfill: true });
     const weekly = await refreshCreativeWeeklySnapshots({ projectId: project.id });
+    let aiStatus = "skipped";
+    if (useAi && project.id !== LEGACY_DMND_PROJECT_ID) {
+      try {
+        const aiReport = await analyzeProjectReport({ projectId: project.id, brief: projectBrief });
+        aiStatus = aiReport.status;
+      } catch (error) {
+        console.error("Automatic AI report analysis failed", error);
+        aiStatus = "failed";
+      }
+    }
+
     if (existing) {
       const sheetSummary = await syncGoogleReports({ projectId: project.id });
       const manualWeekly = await syncManualWeeklyReports({ projectId: project.id });
@@ -187,6 +218,7 @@ export async function POST(request: NextRequest) {
       url.searchParams.set("sheets", String(
         sheetSummary.appended + sheetSummary.updated + manualWeekly.appended + manualWeekly.updated
       ));
+      url.searchParams.set("ai", aiStatus);
       return NextResponse.redirect(url, 303);
     }
 
@@ -194,6 +226,7 @@ export async function POST(request: NextRequest) {
     url.searchParams.set("synced", String(metaSummary.insights));
     url.searchParams.set("weekly", String(weekly.snapshots));
     url.searchParams.set("errors", String(metaSummary.errors));
+    url.searchParams.set("ai", aiStatus);
     return NextResponse.redirect(url, 303);
   } catch (error) {
     console.error("Project save failed", error);

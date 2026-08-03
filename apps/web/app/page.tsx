@@ -1,86 +1,85 @@
 import Link from "next/link";
+import { AmbientVisual } from "./ambient-visual";
 
-const steps = [
+const features = [
   {
     number: "01",
-    title: "Підключити Meta",
-    description: "Обрати доступні рекламні кабінети. Старі й нові кабінети можуть належати одному проєкту."
+    title: "Один проєкт — тільки його дані",
+    description: "Кабінети, кампанії, креативи й конфіг звіту ізольовані за project ID. Чужі вкладки та правила не підмішуються."
   },
   {
     number: "02",
-    title: "Обрати дані",
-    description: "Кампанії, оголошення, креативи, результати, період, деталізація та частота оновлення."
+    title: "AI читає контекст, а не лише неймінг",
+    description: "Система зіставляє назви, цілі, Meta events, метрики, оголошення й доступні превʼю креативів."
   },
   {
     number: "03",
-    title: "Налаштувати відповідності",
-    description: "Підтвердити проєкти, напрямки та значення результатів для різних кампаній."
-  },
-  {
-    number: "04",
-    title: "Створити Google-звіт",
-    description: "Один постійний звіт, який доповнюється, оновлює атрибуцію і не стирає історію."
+    title: "Міні-кейтаро, який збирає себе сам",
+    description: "Офери, воронки, result metric і стартові групування формуються під конкретний бізнес та лишаються керованими."
   }
-];
-
-const guarantees = [
-  "Історичні дані не очищаються під час синхронізації",
-  "Новий рекламний кабінет продовжує історію того самого проєкту",
-  "Креативи з однаковою назвою агрегуються між кабінетами",
-  "Ручні Status, Comment і Final result не перезаписуються",
-  "Невідомі результати потрапляють у чергу на мапінг, а не губляться"
 ];
 
 export default function HomePage() {
   return (
-    <main>
-      <section className="hero">
-        <div className="eyebrow">Meta reporting infrastructure</div>
-        <h1>Клієнтські звіти, які не треба щотижня збирати заново.</h1>
-        <p className="lead">
-          Підключаєш Meta, обираєш дані та отримуєш постійну Google-таблицю зі статистикою,
-          креативами, напрямками й історією всіх рекламних кабінетів.
-        </p>
-        <div className="actions">
-          <Link className="primaryButton" href="/setup">Почати налаштування</Link>
-          <span>Foundation v0.2</span>
-        </div>
-      </section>
+    <div className="aiShell">
+      <div className="aiAmbient" aria-hidden="true"><i /><i /><i /></div>
+      <header className="aiTopbar">
+        <Link className="aiBrand" href="/"><span className="aiBrandMark" />Zvedeno</Link>
+        <nav className="aiNav" aria-label="Основна навігація">
+          <Link href="/setup/accounts">Проєкти</Link>
+          <Link href="/users">Користувачі</Link>
+          <Link className="aiPrimary" href="/setup">Підключити Meta</Link>
+        </nav>
+      </header>
 
-      <section className="section">
-        <div className="sectionHeading">
-          <span>Простий сценарій</span>
-          <h2>Чотири кроки замість ручної пізди зі звітами</h2>
-        </div>
-        <div className="stepGrid">
-          {steps.map((step) => (
-            <article className="step" key={step.number}>
-              <div className="stepNumber">{step.number}</div>
-              <h3>{step.title}</h3>
-              <p>{step.description}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      <main>
+        <section className="aiHeroHome">
+          <AmbientVisual />
+          <div className="aiHeroCopy">
+            <div className="eyebrow">AI REPORTING WORKSPACE</div>
+            <h1>Реклама в Meta. <em>Зведена без ручної пиздні.</em></h1>
+            <p className="lead">
+              Обираєш рекламні кабінети, описуєш бізнес і отримуєш індивідуальний міні-кейтаро.
+              AI аналізує структуру акаунта, кампанії, результати та креативи, а не копіює чужий шаблон.
+            </p>
+            <div className="aiHeroActions">
+              <Link className="primaryButton aiPrimary" href="/setup/accounts">Створити AI-проєкт</Link>
+              <Link className="secondaryButton aiSecondary" href="/users">Керувати командою</Link>
+              <span className="aiHeroMeta">PROJECT-SCOPED · META-NATIVE · LIVING REPORTS</span>
+            </div>
+          </div>
+        </section>
 
-      <section className="section split">
-        <div>
+        <section className="section aiHomeSection">
           <div className="sectionHeading">
-            <span>Незламна історія</span>
-            <h2>Кабінети змінюються. Проєкт і звіт залишаються.</h2>
+            <span>Project intelligence</span>
+            <h2>Звіт формується з реального контексту кабінету.</h2>
           </div>
-          <div className="flow" aria-label="Project continuity example">
-            <div><strong>Project DMND</strong><small>Постійна сутність</small></div>
-            <div className="arrow">→</div>
-            <div><strong>Account A</strong><small>Blocked · history kept</small></div>
-            <div className="arrow">+</div>
-            <div><strong>Account B</strong><small>Active · new data</small></div>
+          <div className="aiFeatureGrid">
+            {features.map((feature) => (
+              <article className="aiFeatureCard" key={feature.number}>
+                <b>{feature.number}</b>
+                <h3>{feature.title}</h3>
+                <p>{feature.description}</p>
+              </article>
+            ))}
           </div>
-        </div>
-        <ul className="guarantees">
-          {guarantees.map((item) => <li key={item}>{item}</li>)}
-        </ul>
-      </section>
-    </main>
+        </section>
+
+        <section className="section aiHomeSplit">
+          <div className="sectionHeading">
+            <span>Controlled AI</span>
+            <h2>AI пропонує логіку. Дані й рішення залишаються під контролем.</h2>
+          </div>
+          <div className="aiHomeFlow">
+            <div><small>INPUT</small><strong>Вибрані Meta-кабінети</strong></div>
+            <span>→</span>
+            <div><small>ANALYSIS</small><strong>Кампанії + events + креативи</strong></div>
+            <span>→</span>
+            <div><small>OUTPUT</small><strong>Персональний міні-кейтаро</strong></div>
+          </div>
+        </section>
+      </main>
+    </div>
   );
 }
