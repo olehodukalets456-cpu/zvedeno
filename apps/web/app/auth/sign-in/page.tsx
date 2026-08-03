@@ -7,7 +7,13 @@ type SignInPageProps = {
 
 function callbackValue(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
-  return raw && raw.startsWith("/") ? raw : "/";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return "/";
+  try {
+    const parsed = new URL(raw, "https://zvedeno.local");
+    return parsed.origin === "https://zvedeno.local" ? `${parsed.pathname}${parsed.search}${parsed.hash}` : "/";
+  } catch {
+    return "/";
+  }
 }
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
