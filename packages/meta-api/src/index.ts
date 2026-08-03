@@ -22,6 +22,7 @@ type MetaErrorBody = {
     error_user_title?: string;
     error_user_msg?: string;
     fbtrace_id?: string;
+    is_transient?: boolean;
   };
 };
 
@@ -56,12 +57,30 @@ function asksForLessData(payload: unknown): boolean {
   );
 }
 
+function isRateLimit(payload: unknown): boolean {
+  const error = metaError(payload);
+  if (!error) return false;
+  return (
+    error.is_transient === true ||
+    error.code === 4 ||
+    error.code === 17 ||
+    error.code === 32 ||
+    error.code === 613 ||
+    /request limit reached|too many api|rate limit/i.test(error.message ?? "")
+  );
+}
+
 function reducePageSize(url: URL): number | null {
   const current = Number(url.searchParams.get("limit") ?? 0);
   const next = current > 100 ? 100 : current > 50 ? 50 : current > 25 ? 25 : current > 10 ? 10 : null;
   if (!next) return null;
   url.searchParams.set("limit", String(next));
   return next;
+}
+
+function capInitialPageSize(url: URL): void {
+  const current = Number(url.searchParams.get("limit") ?? 0);
+  if (current > 100) url.searchParams.set("limit", "100");
 }
 
 export class MetaApiError extends Error {
@@ -84,6 +103,13 @@ function retryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
 }
 
+function retryableError(error: unknown): boolean {
+  return (
+    error instanceof MetaApiError &&
+    (retryableStatus(error.status) || isRateLimit(error.payload))
+  );
+}
+
 export class MetaClient {
   private readonly baseUrl: string;
   private readonly maxRetries: number;
@@ -96,6 +122,7 @@ export class MetaClient {
   private async requestUrl<T>(url: URL | string, label: string): Promise<T> {
     let lastError: unknown;
     const requestUrl = new URL(url.toString());
+    capInitialPageSize(requestUrl);
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       try {
@@ -127,17 +154,23 @@ export class MetaClient {
           }
         }
 
-        if (!retryableStatus(response.status) || attempt === this.maxRetries) throw error;
+        const retryable = retryableStatus(response.status) || isRateLimit(payload);
+        if (!retryable || attempt === this.maxRetries) throw error;
 
         const retryAfter = Number(response.headers.get("retry-after") ?? 0);
-        const exponential = Math.min(30_000, 750 * 2 ** attempt);
+        const exponential = isRateLimit(payload)
+          ? Math.min(30_000, 5_000 * 2 ** attempt)
+          : Math.min(30_000, 750 * 2 ** attempt);
         await sleep(Math.max(retryAfter * 1000, exponential) + Math.floor(Math.random() * 500));
         lastError = error;
       } catch (error) {
         lastError = error;
-        if (error instanceof MetaApiError && !retryableStatus(error.status)) throw error;
+        if (error instanceof MetaApiError && !retryableError(error)) throw error;
         if (attempt === this.maxRetries) throw error;
-        await sleep(Math.min(30_000, 750 * 2 ** attempt) + Math.floor(Math.random() * 500));
+        const delay = retryableError(error)
+          ? Math.min(30_000, 5_000 * 2 ** attempt)
+          : Math.min(30_000, 750 * 2 ** attempt);
+        await sleep(delay + Math.floor(Math.random() * 500));
       }
     }
 
