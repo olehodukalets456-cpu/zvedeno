@@ -5,6 +5,10 @@ type SignInPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
+function single(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
 function callbackValue(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return "/";
@@ -19,6 +23,7 @@ function callbackValue(value: string | string[] | undefined): string {
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const query = await searchParams;
   const callbackUrl = callbackValue(query.callbackUrl);
+  const error = single(query.error);
 
   return (
     <main className="aiShell authPage">
@@ -32,6 +37,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             Авторизація працює через Neon Auth. Сесії та користувачі зберігаються у тій самій
             інфраструктурі, а workspace-роль визначає доступ до звітів і налаштувань.
           </p>
+          {error === "not_invited" && (
+            <div className="errorNotice authInviteNotice">
+              Цей email ще не доданий до workspace. Owner або admin має спочатку підготувати доступ у розділі «Користувачі».
+            </div>
+          )}
         </div>
         <AuthForm callbackUrl={callbackUrl} />
       </section>
