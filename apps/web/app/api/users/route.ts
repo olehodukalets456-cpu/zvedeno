@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { createDatabase, users, workspaceMembers, workspaces } from "@zvedeno/database";
+import { currentWorkspaceUser } from "../../../lib/auth/workspace-user";
 
 const ROLES = new Set(["owner", "admin", "member", "viewer"] as const);
 type Role = "owner" | "admin" | "member" | "viewer";
@@ -10,6 +11,13 @@ function redirectUrl(path: string): URL {
 }
 
 export async function POST(request: NextRequest) {
+  if (process.env.AUTH_ENFORCED === "true") {
+    const currentUser = await currentWorkspaceUser();
+    if (currentUser?.role !== "owner" && currentUser?.role !== "admin") {
+      return NextResponse.redirect(redirectUrl("/users?error=forbidden"), 303);
+    }
+  }
+
   const form = await request.formData();
   const email = String(form.get("email") ?? "").trim().toLocaleLowerCase("en-US");
   const name = String(form.get("name") ?? "").trim();
