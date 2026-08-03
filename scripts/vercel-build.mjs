@@ -12,6 +12,7 @@ run("node scripts/patch-report-date-format.mjs");
 run("node scripts/patch-analytics-linked-account-filter.mjs");
 run("node scripts/patch-keitaro-offers-ui.mjs");
 run("node scripts/patch-analytics-stable-grid.mjs");
+run("node scripts/patch-project-ai-module-paths.mjs");
 run("node scripts/patch-project-scoped-analytics.mjs");
 run("node scripts/patch-project-ai-dashboard.mjs");
 run("npx -y pnpm@9.15.9 --filter @zvedeno/database exec drizzle-kit push --force");
