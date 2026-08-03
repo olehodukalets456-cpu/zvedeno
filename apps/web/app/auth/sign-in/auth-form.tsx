@@ -18,10 +18,11 @@ export function AuthForm({ callbackUrl = "/" }: { callbackUrl?: string }) {
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const name = String(form.get("name") ?? "").trim();
+    const displayName = name || email.split("@")[0] || "Zvedeno user";
 
     try {
       const result = mode === "sign-up"
-        ? await authClient.signUp.email({ email, password, name: name || email.split("@")[0], callbackURL: callbackUrl })
+        ? await authClient.signUp.email({ email, password, name: displayName, callbackURL: callbackUrl })
         : await authClient.signIn.email({ email, password, callbackURL: callbackUrl });
 
       if (result.error) {
