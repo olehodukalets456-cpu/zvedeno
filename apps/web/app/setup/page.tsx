@@ -37,116 +37,128 @@ export default async function SetupPage({ searchParams }: SetupPageProps) {
     const hasAccounts = existingAccounts.length > 0;
 
     return (
-      <main className="setupMain">
-        <Link className="backLink" href="/">← На головну</Link>
-
-        <header className="setupHeader">
-          <div className="eyebrow">Налаштування звіту</div>
-          <h1>Підключаємо джерела без ручної возні.</h1>
-          <p>
-            Підключаєш Meta, обираєш кабінети, період і структуру. Після цього сервіс сам
-            підтримує базу та постійну Google-таблицю.
-          </p>
-
-          {error === "meta_not_configured" && (
-            <div className="errorNotice">У Vercel відсутні обов’язкові ключі Meta.</div>
-          )}
-          {error === "meta_system_user_not_configured" && (
-            <div className="errorNotice">System User token або ключі Meta відсутні у Vercel.</div>
-          )}
-          {error === "meta_system_user_failed" && (
-            <div className="errorNotice">System User token не пройшов перевірку. Деталі є у Vercel Logs.</div>
-          )}
-          {error === "meta_oauth_denied" && (
-            <div className="errorNotice">Авторизацію Meta скасовано або доступ не підтверджено.</div>
-          )}
-          {error === "meta_oauth_invalid_response" && (
-            <div className="errorNotice">Meta повернула неповну OAuth-відповідь. Запусти підключення ще раз.</div>
-          )}
-          {error === "meta_oauth_state_mismatch" && (
-            <div className="errorNotice">Сесія авторизації застаріла. Натисни підключення один раз і заверши його в цій самій вкладці.</div>
-          )}
-          {error === "meta_token_exchange_failed" && (
-            <div className="errorNotice">Meta не дозволила отримати або перевірити довгостроковий токен. Точна причина записана у Vercel Logs.</div>
-          )}
-          {error === "meta_oauth_failed" && (
-            <div className="errorNotice">Meta не завершила авторизацію. Запусти підключення ще раз одним кліком.</div>
-          )}
-          {connected && (
-            <div className="successNotice">
-              Meta підключено. Знайдено рекламних кабінетів: {connectedCount ?? existingAccounts.length}.
-            </div>
-          )}
+      <div className="aiShell">
+        <div className="aiAmbient" aria-hidden="true"><i /><i /><i /></div>
+        <header className="aiTopbar">
+          <Link className="aiBrand" href="/"><span className="aiBrandMark" />Zvedeno</Link>
+          <nav className="aiNav" aria-label="Основна навігація">
+            <Link href="/setup/accounts">Проєкти</Link>
+            <Link href="/users">Користувачі</Link>
+          </nav>
         </header>
 
-        <section className="setupList">
-          <article className="setupCard">
-            <div className="setupIndex">1</div>
-            <div className="setupCopy">
-              <h2>Підключити або оновити Meta</h2>
-              <p>Ключі застосунку зберігаються у Vercel, а отриманий токен — зашифровано в базі.</p>
-              {!oauthReady && (
-                <div className="configNotice">
-                  Додай у Vercel Environment Variables:
-                  <ul className="missingList">
-                    {missingMetaEnv.map((key) => <li key={key}>{key}</li>)}
-                  </ul>
-                </div>
-              )}
-              {oauthReady && !systemUserReady && (
-                <div className="configNotice">
-                  OAuth готовий. Він бачить рекламні кабінети з різних БМ, до яких має доступ твій Facebook-профіль, і зберігає довгостроковий user token. Абсолютно постійний токен можливий лише через System User та призначені йому бізнес-активи.
-                </div>
-              )}
-            </div>
-            <div className="setupActions">
-              {systemUserReady && (
-                <Link className="primaryButton" href="/api/integrations/meta/system-user/connect">
-                  Підключити System User
-                </Link>
-              )}
-              {oauthReady ? (
-                <Link className={systemUserReady ? "secondaryButton" : "primaryButton"} href="/api/integrations/meta/connect">
-                  {hasAccounts ? "Оновити через Facebook" : "Підключити через Facebook"}
-                </Link>
-              ) : (
-                <span className="disabledButton" aria-disabled="true">Потрібні ключі Meta</span>
-              )}
-            </div>
-          </article>
+        <main className="setupMain">
+          <Link className="backLink aiBack" href="/">← На головну</Link>
 
-          <article className={`setupCard ${hasAccounts ? "" : "isLocked"}`}>
-            <div className="setupIndex">2</div>
-            <div className="setupCopy">
-              <h2>Обрати кабінети, проєкт і дані</h2>
-              <p>Створити новий проєкт або додати новий кабінет до вже існуючого звіту.</p>
-            </div>
-            {hasAccounts ? (
-              <Link className="primaryButton" href="/setup/accounts">Продовжити</Link>
-            ) : (
-              <span className="disabledButton" aria-disabled="true">Після Meta</span>
+          <header className="setupHeader aiPageHeader">
+            <div className="eyebrow">SOURCE CONNECTION</div>
+            <h1>Підключаємо джерела. Далі AI збере логіку проєкту.</h1>
+            <p>
+              Meta дає фактичні кампанії, оголошення, події та креативи. На наступному кроці
+              ти обереш кабінети й опишеш, що має бачити команда у міні-кейтаро.
+            </p>
+
+            {error === "meta_not_configured" && (
+              <div className="errorNotice">У Vercel відсутні обов’язкові ключі Meta.</div>
             )}
-          </article>
+            {error === "meta_system_user_not_configured" && (
+              <div className="errorNotice">System User token або ключі Meta відсутні у Vercel.</div>
+            )}
+            {error === "meta_system_user_failed" && (
+              <div className="errorNotice">System User token не пройшов перевірку. Деталі є у Vercel Logs.</div>
+            )}
+            {error === "meta_oauth_denied" && (
+              <div className="errorNotice">Авторизацію Meta скасовано або доступ не підтверджено.</div>
+            )}
+            {error === "meta_oauth_invalid_response" && (
+              <div className="errorNotice">Meta повернула неповну OAuth-відповідь. Запусти підключення ще раз.</div>
+            )}
+            {error === "meta_oauth_state_mismatch" && (
+              <div className="errorNotice">Сесія авторизації застаріла. Натисни підключення один раз і заверши його в цій самій вкладці.</div>
+            )}
+            {error === "meta_token_exchange_failed" && (
+              <div className="errorNotice">Meta не дозволила отримати або перевірити довгостроковий токен. Точна причина записана у Vercel Logs.</div>
+            )}
+            {error === "meta_oauth_failed" && (
+              <div className="errorNotice">Meta не завершила авторизацію. Запусти підключення ще раз одним кліком.</div>
+            )}
+            {connected && (
+              <div className="successNotice">
+                Meta підключено. Знайдено рекламних кабінетів: {connectedCount ?? existingAccounts.length}.
+              </div>
+            )}
+          </header>
 
-          <article className="setupCard isLocked">
-            <div className="setupIndex">3</div>
-            <div className="setupCopy">
-              <h2>Підключити Google</h2>
-              <p>Сервіс отримує refresh token і може оновлювати таблицю без твоєї присутності.</p>
-            </div>
-            <span className="disabledButton" aria-disabled="true">Після проєкту</span>
-          </article>
+          <section className="setupList aiSetupTimeline">
+            <article className="setupCard aiGlass">
+              <div className="setupIndex">01</div>
+              <div className="setupCopy">
+                <h2>Підключити або оновити Meta</h2>
+                <p>Ключі застосунку зберігаються у Vercel, а отриманий токен — зашифровано в базі.</p>
+                {!oauthReady && (
+                  <div className="configNotice">
+                    Додай у Vercel Environment Variables:
+                    <ul className="missingList">
+                      {missingMetaEnv.map((key) => <li key={key}>{key}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {oauthReady && !systemUserReady && (
+                  <div className="configNotice">
+                    OAuth готовий. Він бачить кабінети різних Business Manager, до яких має доступ Facebook-профіль.
+                    Постійний серверний доступ краще робити через System User і призначені бізнес-активи.
+                  </div>
+                )}
+              </div>
+              <div className="setupActions">
+                {systemUserReady && (
+                  <Link className="primaryButton aiPrimary" href="/api/integrations/meta/system-user/connect">
+                    Підключити System User
+                  </Link>
+                )}
+                {oauthReady ? (
+                  <Link className={systemUserReady ? "secondaryButton aiSecondary" : "primaryButton aiPrimary"} href="/api/integrations/meta/connect">
+                    {hasAccounts ? "Оновити через Facebook" : "Підключити через Facebook"}
+                  </Link>
+                ) : (
+                  <span className="disabledButton" aria-disabled="true">Потрібні ключі Meta</span>
+                )}
+              </div>
+            </article>
 
-          <article className="setupCard isLocked">
-            <div className="setupIndex">4</div>
-            <div className="setupCopy">
-              <h2>Створити Google-звіт</h2>
-              <p>Постійна таблиця з Dashboard, Campaigns, Daily, Creatives, Funnel і Sync Status.</p>
-            </div>
-            <span className="disabledButton" aria-disabled="true">Фінальний крок</span>
-          </article>
-        </section>
-      </main>
+            <article className={`setupCard aiGlass ${hasAccounts ? "" : "isLocked"}`}>
+              <div className="setupIndex">02</div>
+              <div className="setupCopy">
+                <h2>Обрати кабінети й описати бізнес</h2>
+                <p>Новий проєкт отримує власні джерела, власний AI-конфіг і власні вкладки звіту.</p>
+              </div>
+              {hasAccounts ? (
+                <Link className="primaryButton aiPrimary" href="/setup/accounts">Запустити AI Builder</Link>
+              ) : (
+                <span className="disabledButton" aria-disabled="true">Після Meta</span>
+              )}
+            </article>
+
+            <article className="setupCard aiGlass isLocked">
+              <div className="setupIndex">03</div>
+              <div className="setupCopy">
+                <h2>Перевірити структуру міні-кейтаро</h2>
+                <p>AI пропонує офери, воронки та ключові результати на основі саме вибраного проєкту.</p>
+              </div>
+              <span className="disabledButton" aria-disabled="true">Після аналізу</span>
+            </article>
+
+            <article className="setupCard aiGlass isLocked">
+              <div className="setupIndex">04</div>
+              <div className="setupCopy">
+                <h2>Підключити Google-звіт</h2>
+                <p>Окремий постійний Sheet залишається додатковим каналом експорту, а не джерелом логіки.</p>
+              </div>
+              <span className="disabledButton" aria-disabled="true">Фінальний крок</span>
+            </article>
+          </section>
+        </main>
+      </div>
     );
   } finally {
     await pool.end();
