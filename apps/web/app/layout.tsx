@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import "./ai-shell.css";
+import "./ai-home.css";
 import "./report-v2.css";
 
 export const dynamic = "force-dynamic";
