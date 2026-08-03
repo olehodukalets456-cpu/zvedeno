@@ -27,6 +27,12 @@ export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | nul
       .limit(1);
     if (!workspace) return null;
 
+    const [membershipSummary] = await db
+      .select({ total: count() })
+      .from(workspaceMembers)
+      .where(eq(workspaceMembers.workspaceId, workspace.id));
+    const workspaceHasMembers = Number(membershipSummary?.total ?? 0) > 0;
+
     let [appUser] = await db
       .select({ id: users.id, email: users.email, name: users.name, imageUrl: users.imageUrl })
       .from(users)
@@ -34,6 +40,7 @@ export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | nul
       .limit(1);
 
     if (!appUser) {
+      if (workspaceHasMembers) return null;
       [appUser] = await db
         .insert(users)
         .values({
@@ -63,14 +70,10 @@ export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | nul
       .limit(1);
 
     if (!membership) {
-      const [summary] = await db
-        .select({ total: count() })
-        .from(workspaceMembers)
-        .where(eq(workspaceMembers.workspaceId, workspace.id));
-      const role = Number(summary?.total ?? 0) === 0 ? "owner" : "viewer";
+      if (workspaceHasMembers) return null;
       [membership] = await db
         .insert(workspaceMembers)
-        .values({ workspaceId: workspace.id, userId: appUser.id, role })
+        .values({ workspaceId: workspace.id, userId: appUser.id, role: "owner" })
         .returning({ role: workspaceMembers.role });
     }
 
