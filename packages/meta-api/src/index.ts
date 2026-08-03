@@ -25,10 +25,13 @@ type MetaErrorBody = {
   };
 };
 
+function metaError(payload: unknown): MetaErrorBody["error"] | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  return (payload as MetaErrorBody).error;
+}
+
 function describePayload(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-  const body = payload as MetaErrorBody;
-  const error = body.error;
+  const error = metaError(payload);
   if (!error) return null;
 
   const parts = [
@@ -42,6 +45,23 @@ function describePayload(payload: unknown): string | null {
   ].filter((value): value is string => Boolean(value));
 
   return parts.length ? parts.join(" | ") : null;
+}
+
+function asksForLessData(payload: unknown): boolean {
+  const error = metaError(payload);
+  if (!error) return false;
+  return (
+    error.code === 1 &&
+    /reduce the amount of data|too much data|request.*too large/i.test(error.message ?? "")
+  );
+}
+
+function reducePageSize(url: URL): number | null {
+  const current = Number(url.searchParams.get("limit") ?? 0);
+  const next = current > 100 ? 100 : current > 50 ? 50 : current > 25 ? 25 : current > 10 ? 10 : null;
+  if (!next) return null;
+  url.searchParams.set("limit", String(next));
+  return next;
 }
 
 export class MetaApiError extends Error {
@@ -75,10 +95,11 @@ export class MetaClient {
 
   private async requestUrl<T>(url: URL | string, label: string): Promise<T> {
     let lastError: unknown;
+    const requestUrl = new URL(url.toString());
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       try {
-        const response = await fetch(url, {
+        const response = await fetch(requestUrl, {
           headers: { Accept: "application/json" },
           signal: AbortSignal.timeout(60_000)
         });
@@ -92,6 +113,20 @@ export class MetaClient {
 
         if (response.ok) return payload as T;
         const error = new MetaApiError(label, response.status, payload);
+
+        if (asksForLessData(payload) && attempt < this.maxRetries) {
+          const nextLimit = reducePageSize(requestUrl);
+          if (nextLimit) {
+            console.warn("Meta response was too large; retrying with a smaller page", {
+              label,
+              limit: nextLimit
+            });
+            lastError = error;
+            await sleep(150 + Math.floor(Math.random() * 150));
+            continue;
+          }
+        }
+
         if (!retryableStatus(response.status) || attempt === this.maxRetries) throw error;
 
         const retryAfter = Number(response.headers.get("retry-after") ?? 0);
