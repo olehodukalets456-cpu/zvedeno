@@ -14,8 +14,9 @@ export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | nul
   const { data: session } = await auth.getSession();
   const authUser = session?.user;
   const email = authUser?.email?.trim().toLocaleLowerCase("en-US");
-  if (!email) return null;
+  if (!authUser || !email) return null;
 
+  const fallbackName = email.split("@")[0] || "Zvedeno user";
   const { db, pool } = createDatabase();
   try {
     const workspaceSlug = process.env.DEFAULT_WORKSPACE_SLUG ?? "personal";
@@ -37,7 +38,7 @@ export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | nul
         .insert(users)
         .values({
           email,
-          name: authUser.name ?? email.split("@")[0],
+          name: authUser.name ?? fallbackName,
           imageUrl: authUser.image ?? null
         })
         .returning({ id: users.id, email: users.email, name: users.name, imageUrl: users.imageUrl });
