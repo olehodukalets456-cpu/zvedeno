@@ -10,7 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@neondatabase/auth": "^0.2.0",
+    "@neondatabase/auth": "0.4.2-beta",
     "@zvedeno/database": "workspace:*",
     "@zvedeno/reporting": "workspace:*",
     "@zvedeno/shared": "workspace:*",
