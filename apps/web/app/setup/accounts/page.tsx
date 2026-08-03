@@ -93,30 +93,33 @@ export default async function AccountsSetupPage({ searchParams }: AccountsSetupP
     const errors = single(query.errors);
 
     return (
-      <main className="setupMain">
-        <Link className="backLink" href="/setup">← До підключень</Link>
-        <header className="setupHeader compactHeader">
-          <div className="eyebrow">Крок 2</div>
-          <h1>Обери кабінети, напрямки й фактичний результат.</h1>
+      <main className="setupMain aiShell">
+        <div className="aiAmbient" aria-hidden="true"><i /><i /><i /></div>
+        <Link className="backLink aiBack" href="/setup">← До підключень</Link>
+        <header className="setupHeader compactHeader aiPageHeader">
+          <div className="eyebrow">AI PROJECT BUILDER · КРОК 2</div>
+          <h1>Обери джерела. Опиши бізнес. Решту структури збере система.</h1>
           <p>
-            Кабінети можна міняти й додавати пізніше. Історія проєкту та Google-звіт не стираються.
+            Zvedeno сканує тільки вибрані кабінети конкретного проєкту: кампанії, цілі,
+            оголошення, назви, події, креативи та фактичну поведінку метрик. Після цього AI
+            пропонує офери, воронки й основні результати для міні-кейтаро.
           </p>
         </header>
 
-        <section className="formSection">
+        <section className="formSection aiGlass aiMetaRefresh">
           <div className="formHeading">
-            <span>Meta</span>
+            <span>Meta inventory</span>
             <h2>Оновити доступні рекламні кабінети</h2>
           </div>
           <p>
             Перевіряємо особисті кабінети, власні кабінети Business Manager і партнерські клієнтські кабінети.
           </p>
           <form action="/api/integrations/meta/accounts/refresh" method="post">
-            <button className="primaryButton" type="submit">Оновити список кабінетів</button>
+            <button className="primaryButton aiPrimary" type="submit">Оновити список кабінетів</button>
           </form>
 
           {(refreshStatus || discoveryStatus === "connected") && (
-            <p>
+            <p className="aiInlineStatus">
               {refreshStatus === "failed"
                 ? "Оновлення не вдалося. Перевіримо токен і доступи Meta."
                 : `Знайдено ${discoveredAccounts || accounts.length} кабінетів: напряму ${directAccounts || "—"}, Business Manager ${businesses || "—"}, власних ${ownedAccounts || "—"}, партнерських ${clientAccounts || "—"}. Попереджень: ${warnings || "0"}${errors ? `, помилок: ${errors}` : ""}.`}
@@ -125,20 +128,57 @@ export default async function AccountsSetupPage({ searchParams }: AccountsSetupP
         </section>
 
         {accounts.length === 0 ? (
-          <section className="emptyState">
+          <section className="emptyState aiGlass">
             <h2>Рекламні кабінети ще не знайдені</h2>
             <p>Повернись назад і підключи Meta або онови список вище.</p>
-            <Link className="primaryButton" href="/setup">Підключити Meta</Link>
+            <Link className="primaryButton aiPrimary" href="/setup">Підключити Meta</Link>
           </section>
         ) : (
-          <form className="projectForm" action="/api/projects" method="post">
+          <form className="projectForm aiProjectForm" action="/api/projects" method="post">
             <AccountSelector projects={existingProjects} accounts={accountOptions} />
 
-            <section className="formSection twoColumns">
+            <section className="formSection aiGlass aiBriefSection">
+              <div className="formHeading">
+                <span>Business context</span>
+                <h2>Що саме ти хочеш бачити у звіті?</h2>
+              </div>
+              <p>
+                Пиши нормальною мовою. Наприклад: які продукти або напрями є в кабінеті,
+                куди веде реклама, що вважається реальною конверсією та які зрізи потрібні команді.
+                AI зіставить цей опис із фактичним контекстом кабінету, а не сліпо повірить неймінгу.
+              </p>
+              <label className="fieldLabel aiPromptField">
+                Завдання для AI
+                <textarea
+                  name="projectBrief"
+                  rows={7}
+                  placeholder="Наприклад: у проєкті є вакансії, Telegram-канал і продаж доменів. Для вакансій розділяй сайт та лід-форми, для каналу рахуй реальні підписки окремо від Meta Lead, для бота основний результат — покупка. Показуй креативи, воронки, кабінети та фактичний CPA."
+                />
+              </label>
+              <label className="aiToggleCard">
+                <input type="checkbox" name="useAi" value="on" defaultChecked />
+                <span><strong>Проаналізувати проєкт за допомогою AI</strong><small>Назви, цілі, події, метрики й доступні превʼю креативів. Токен Meta моделі не передається.</small></span>
+              </label>
+
+              <details className="aiAdvanced">
+                <summary>Ручні правила як fallback</summary>
+                <p>Необовʼязково. Один рядок: <strong>КЛЮЧ:Фактичний результат</strong>.</p>
+                <label className="fieldLabel">
+                  Напрямки та результат
+                  <textarea
+                    name="directionRules"
+                    rows={4}
+                    placeholder={"JOB:Ліди\nDMND:Підписки"}
+                  />
+                </label>
+              </details>
+            </section>
+
+            <section className="formSection twoColumns aiGlass">
               <div>
                 <div className="formHeading">
                   <span>Період</span>
-                  <h2>Звідки тягнути історію нового джерела?</h2>
+                  <h2>Глибина аналізу</h2>
                 </div>
                 <label className="fieldLabel">
                   Початкова дата
@@ -158,7 +198,7 @@ export default async function AccountsSetupPage({ searchParams }: AccountsSetupP
               <div>
                 <div className="formHeading">
                   <span>Оновлення</span>
-                  <h2>Як часто оновлювати звіт?</h2>
+                  <h2>Режим синхронізації</h2>
                 </div>
                 <label className="fieldLabel">
                   Частота
@@ -172,7 +212,7 @@ export default async function AccountsSetupPage({ searchParams }: AccountsSetupP
                 <label className="fieldLabel">
                   Основний результат Meta
                   <select name="resultMetric" defaultValue="auto">
-                    <option value="auto">Визначати автоматично</option>
+                    <option value="auto">AI визначить по контексту</option>
                     <option value="action.lead">Ліди</option>
                     <option value="action.messaging_conversation_started_7d">Переписки</option>
                     <option value="action.link_click">Кліки</option>
@@ -182,38 +222,22 @@ export default async function AccountsSetupPage({ searchParams }: AccountsSetupP
               </div>
             </section>
 
-            <section className="formSection">
+            <section className="formSection aiGlass aiProcessSection">
               <div className="formHeading">
-                <span>Напрямки</span>
-                <h2>Які окремі вкладки створити?</h2>
+                <span>How it works</span>
+                <h2>Не магія, а контрольований pipeline</h2>
               </div>
-              <p>
-                Сервіс бере перше слово з назви кампанії. Кожен рядок нижче: <strong>КЛЮЧ:Фактичний результат</strong>.
-                Для існуючого проєкту поле можна лишити порожнім, якщо правила не змінюються.
-              </p>
-              <label className="fieldLabel">
-                Напрямки та результат
-                <textarea
-                  name="directionRules"
-                  rows={5}
-                  placeholder={"JOB:Ліди\nDMND:Підписки"}
-                />
-              </label>
+              <div className="aiProcessGrid">
+                <div><b>01</b><strong>Сканування</strong><small>Усі вибрані кампанії, оголошення, події й креативи.</small></div>
+                <div><b>02</b><strong>Контекст</strong><small>AI порівнює неймінг із цілями, метриками та візуалом.</small></div>
+                <div><b>03</b><strong>Конфіг</strong><small>Офери, воронки, result metric і стартові групування.</small></div>
+                <div><b>04</b><strong>Перевірка</strong><small>Конфіг можна перезапустити або скоригувати без змішування проєктів.</small></div>
+              </div>
             </section>
 
-            <section className="formSection">
-              <div className="formHeading">
-                <span>Структура</span>
-                <h2>Звіт формується автоматично</h2>
-              </div>
-              <p>
-                Видимими будуть Dashboard і вкладки напрямків. У кожній — тижневе порівняння креативів,
-                дата запуску й стопу, спенд, покази, кліки, Meta-результат і поле для фактичного результату.
-                Технічні дані зберігаються в прихованих вкладках.
-              </p>
-            </section>
-
-            <button className="primaryButton submitButton" type="submit">Зберегти та завантажити дані</button>
+            <button className="primaryButton submitButton aiPrimary aiLaunchButton" type="submit">
+              Створити проєкт і зібрати звіт
+            </button>
           </form>
         )}
       </main>
