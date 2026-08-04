@@ -69,10 +69,11 @@ export default async function ReportBuilderPage({ params, searchParams }: PagePr
     const state = await loadReportInterview(project.id) ?? await startReportInterview({ projectId: project.id });
     const topMetrics = state.metricInventory.filter((metric) => metric.nonZeroRows > 0).slice(0, 18);
     const selectedTemplate = reportTemplateById(state.blueprint.templateId);
+    const recommendations = state.recommendations.slice(0, 3);
 
     return (
       <main className="reportBuilderMain">
-        <div className="onboardingProgress" aria-label="Етапи налаштування">
+        <div className="onboardingProgress reportBuilderProgress" aria-label="Етапи налаштування">
           <span className="isDone">1. Кабінет</span>
           <span className="isDone">2. Meta</span>
           <span className="isDone">3. Проєкт</span>
@@ -83,18 +84,40 @@ export default async function ReportBuilderPage({ params, searchParams }: PagePr
         <header className="reportBuilderHero">
           <div>
             <div className="eyebrow">AI REPORT ARCHITECT · ROUND {state.round}</div>
-            <h1>{state.status === "ready" ? "Структура звіту готова." : "AI проаналізував кабінети. Тепер уточнює, що потрібно саме тобі."}</h1>
+            <h1>{state.status === "ready" ? "Структура звіту готова." : "Спочатку сенс. Потім цифри. Без зайвих таблиць."}</h1>
             <p>{state.summary}</p>
           </div>
-          <div className="reportBuilderModel"><span>MODEL</span><strong>{state.model}</strong><small>{state.metricInventory.length} доступних метрик</small></div>
+          <div className="reportBuilderModel"><span>ANALYSIS</span><strong>{state.model}</strong><small>{state.metricInventory.length} доступних метрик проаналізовано</small></div>
         </header>
 
         {query.error && <div className="errorNotice">Не вдалося завершити AI-інтервʼю. Спробуй ще раз.</div>}
         {state.warnings.map((warning) => <div className="configNotice" key={warning}>{warning}</div>)}
 
-        <section className="reportMetricAudit aiGlass">
+        {state.status !== "ready" && recommendations.length > 0 && (
+          <section className="reportRecommendations">
+            <div className="reportSectionIntro">
+              <span>AI-рекомендація</span>
+              <h2>Три структури, які найкраще відповідають даним цього проєкту.</h2>
+              <p>Це не готові шаблони «для всіх». AI використовує їх як стартову архітектуру і перебудує після твоїх відповідей.</p>
+            </div>
+            <div className="reportRecommendationGrid">
+              {recommendations.map((recommendation, index) => (
+                <article className={index === 0 ? "reportRecommendationCard isPrimary" : "reportRecommendationCard"} key={recommendation.templateId}>
+                  <div className="reportRecommendationMeta">
+                    <span>{index === 0 ? "Найкраща відповідність" : `Варіант ${index + 1}`}</span>
+                    <strong>{Math.round(recommendation.score * 100)}%</strong>
+                  </div>
+                  <h3>{recommendation.label}</h3>
+                  <p>{recommendation.reason}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="reportMetricAudit">
           <div className="formHeading"><span>Фактичний inventory</span><h2>Що система реально знайшла в Meta</h2></div>
-          <p>AI бачить не лише spend і lead. Він отримує повний набір доступних подій, цінностей, video-метрик і delivery-показників.</p>
+          <p>У розрахунок входять усі доступні події, цінності конверсій, delivery-, traffic-, video- та quality-метрики. У клієнтський звіт потраплять лише ті, що пояснюють результат.</p>
           <div className="reportMetricChips">
             {topMetrics.map((metric) => (
               <span key={metric.key}><strong>{metric.label}</strong><small>{Number(metric.total.toFixed(2))} · {metric.nonZeroRows} рядків</small></span>
@@ -110,38 +133,36 @@ export default async function ReportBuilderPage({ params, searchParams }: PagePr
         </section>
 
         {state.status === "ready" ? (
-          <>
-            <section className="reportBlueprint aiGlass">
-              <div className="formHeading"><span>Готовий blueprint</span><h2>{selectedTemplate.label}</h2></div>
-              <p>{state.blueprint.description}</p>
-              <div className="reportBlueprintStats">
-                <div><strong>{state.blueprint.granularity === "daily" ? "Щодня" : state.blueprint.granularity === "weekly" ? "Щотижня" : "Щомісяця"}</strong><span>динаміка</span></div>
-                <div><strong>{state.blueprint.includeCharts ? "Так" : "Ні"}</strong><span>графіки</span></div>
-                <div><strong>{state.blueprint.includeCreatives ? "Так" : "Ні"}</strong><span>креативи</span></div>
-                <div><strong>{state.blueprint.tabs.length}</strong><span>вкладок</span></div>
-              </div>
-              <div className="reportTabPreview">
-                {state.blueprint.tabs.map((tab, index) => <span key={`${tab.kind}:${tab.title}`}><b>{index + 1}</b>{tab.title}</span>)}
-              </div>
-              <div className="reportBlueprintMetrics">
-                <div><span>Основні метрики</span><code>{state.blueprint.primaryMetrics.join(" · ")}</code></div>
-                <div><span>Фінальний результат</span><code>{state.blueprint.resultMetrics.join(" · ") || "не визначено"}</code></div>
-                <div><span>Дохід / ROAS</span><code>{state.blueprint.revenueMetrics.join(" · ") || "не доступно в Meta"}</code></div>
-              </div>
-              <div className="reportBuilderActions">
-                <Link className="primaryButton aiPrimary" href={`/setup/google?projectId=${project.id}`}>Підключити Google і створити звіт</Link>
-                <form action={`/api/projects/${project.id}/report-builder`} method="post">
-                  <input type="hidden" name="action" value="restart" />
-                  <button className="secondaryButton aiSecondary" type="submit">Перебудувати конфігурацію</button>
-                </form>
-              </div>
-            </section>
-          </>
+          <section className="reportBlueprint">
+            <div className="formHeading"><span>Готовий blueprint</span><h2>{selectedTemplate.label}</h2></div>
+            <p>{state.blueprint.description}</p>
+            <div className="reportBlueprintStats">
+              <div><strong>{state.blueprint.granularity === "daily" ? "Щодня" : state.blueprint.granularity === "weekly" ? "Щотижня" : "Щомісяця"}</strong><span>динаміка</span></div>
+              <div><strong>{state.blueprint.includeCharts ? "Так" : "Ні"}</strong><span>графіки</span></div>
+              <div><strong>{state.blueprint.includeCreatives ? "Так" : "Ні"}</strong><span>креативи</span></div>
+              <div><strong>{state.blueprint.tabs.length}</strong><span>вкладок</span></div>
+            </div>
+            <div className="reportTabPreview">
+              {state.blueprint.tabs.map((tab, index) => <span key={`${tab.kind}:${tab.title}`}><b>{index + 1}</b>{tab.title}</span>)}
+            </div>
+            <div className="reportBlueprintMetrics">
+              <div><span>Основні метрики</span><code>{state.blueprint.primaryMetrics.join(" · ")}</code></div>
+              <div><span>Фінальний результат</span><code>{state.blueprint.resultMetrics.join(" · ") || "не визначено"}</code></div>
+              <div><span>Дохід / ROAS</span><code>{state.blueprint.revenueMetrics.join(" · ") || "не доступно в Meta"}</code></div>
+            </div>
+            <div className="reportBuilderActions">
+              <Link className="reportPrimaryAction" href={`/setup/google?projectId=${project.id}`}>Підключити Google і створити звіт <span>→</span></Link>
+              <form action={`/api/projects/${project.id}/report-builder`} method="post">
+                <input type="hidden" name="action" value="restart" />
+                <button className="reportSecondaryAction" type="submit">Перебудувати конфігурацію</button>
+              </form>
+            </div>
+          </section>
         ) : (
           <form className="reportQuestionnaire" action={`/api/projects/${project.id}/report-builder`} method="post">
             <input type="hidden" name="action" value="answer" />
             {state.questions.map((question, index) => (
-              <section className="reportQuestion aiGlass" key={question.id}>
+              <section className="reportQuestion" key={question.id}>
                 <div className="reportQuestionNumber">{String(index + 1).padStart(2, "0")}</div>
                 <div className="reportQuestionContent">
                   <h2>{question.label}</h2>
@@ -150,9 +171,12 @@ export default async function ReportBuilderPage({ params, searchParams }: PagePr
                 </div>
               </section>
             ))}
-            <button className="primaryButton aiPrimary reportQuestionSubmit" type="submit">
-              {state.round === 1 ? "Передати відповіді AI" : "Завершити уточнення"}
-            </button>
+            <div className="reportQuestionSubmitBar">
+              <span>AI перевірить відповіді й поставить уточнення лише за потреби.</span>
+              <button className="reportQuestionSubmit" type="submit">
+                {state.round === 1 ? "Передати відповіді AI" : "Завершити уточнення"}<b>→</b>
+              </button>
+            </div>
           </form>
         )}
       </main>
