@@ -18,6 +18,7 @@ run("node scripts/patch-project-scoped-analytics.mjs");
 run("node scripts/patch-project-ai-dashboard.mjs");
 run("node scripts/patch-adaptive-report-types.mjs");
 run("node scripts/patch-adaptive-dynamic-metrics.mjs");
+run("node scripts/patch-adaptive-dynamic-metrics-fix.mjs");
 run("node scripts/patch-report-interview-questions.mjs");
 run("node scripts/patch-report-interview-state-safety.mjs");
 run("node scripts/patch-project-adaptive-panels.mjs");
