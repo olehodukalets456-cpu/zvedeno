@@ -4,7 +4,9 @@ import "./globals.css";
 import "./ai-shell.css";
 import "./ai-home.css";
 import "./auth.css";
+import "./workspace.css";
 import "./report-v2.css";
+import "./workspace-overrides.css";
 
 export const dynamic = "force-dynamic";
 

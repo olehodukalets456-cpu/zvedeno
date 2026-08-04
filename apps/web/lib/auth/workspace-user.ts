@@ -2,30 +2,49 @@ import { and, count, eq } from "drizzle-orm";
 import { createDatabase, users, workspaceMembers, workspaces } from "@zvedeno/database";
 import { auth } from "./server";
 
+export type WorkspaceRole = "owner" | "admin" | "member" | "viewer";
+
 export type CurrentWorkspaceUser = {
   id: string;
   email: string;
   name: string | null;
   imageUrl: string | null;
-  role: "owner" | "admin" | "member" | "viewer";
+  role: WorkspaceRole;
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
 };
 
-export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | null> {
+export type WorkspaceAccess =
+  | { status: "anonymous" }
+  | { status: "not_member"; email: string }
+  | { status: "workspace_missing"; email: string }
+  | { status: "allowed"; user: CurrentWorkspaceUser };
+
+export function canManageWorkspace(user: CurrentWorkspaceUser | null): boolean {
+  return user?.role === "owner" || user?.role === "admin";
+}
+
+export function canEditReports(user: CurrentWorkspaceUser | null): boolean {
+  return Boolean(user && user.role !== "viewer");
+}
+
+export async function currentWorkspaceAccess(): Promise<WorkspaceAccess> {
   const { data: session } = await auth.getSession();
   const authUser = session?.user;
   const email = authUser?.email?.trim().toLocaleLowerCase("en-US");
-  if (!authUser || !email) return null;
+  if (!authUser || !email) return { status: "anonymous" };
 
   const fallbackName = email.split("@")[0] || "Zvedeno user";
   const { db, pool } = createDatabase();
   try {
     const workspaceSlug = process.env.DEFAULT_WORKSPACE_SLUG ?? "personal";
     const [workspace] = await db
-      .select({ id: workspaces.id })
+      .select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug })
       .from(workspaces)
       .where(eq(workspaces.slug, workspaceSlug))
       .limit(1);
-    if (!workspace) return null;
+    if (!workspace) return { status: "workspace_missing", email };
 
     const [membershipSummary] = await db
       .select({ total: count() })
@@ -40,7 +59,7 @@ export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | nul
       .limit(1);
 
     if (!appUser) {
-      if (workspaceHasMembers) return null;
+      if (workspaceHasMembers) return { status: "not_member", email };
       [appUser] = await db
         .insert(users)
         .values({
@@ -61,7 +80,7 @@ export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | nul
       }
     }
 
-    if (!appUser) return null;
+    if (!appUser) return { status: "not_member", email };
 
     let [membership] = await db
       .select({ role: workspaceMembers.role })
@@ -70,15 +89,31 @@ export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | nul
       .limit(1);
 
     if (!membership) {
-      if (workspaceHasMembers) return null;
+      if (workspaceHasMembers) return { status: "not_member", email };
       [membership] = await db
         .insert(workspaceMembers)
         .values({ workspaceId: workspace.id, userId: appUser.id, role: "owner" })
         .returning({ role: workspaceMembers.role });
     }
 
-    return membership ? { ...appUser, role: membership.role } : null;
+    if (!membership) return { status: "not_member", email };
+
+    return {
+      status: "allowed",
+      user: {
+        ...appUser,
+        role: membership.role,
+        workspaceId: workspace.id,
+        workspaceName: workspace.name,
+        workspaceSlug: workspace.slug
+      }
+    };
   } finally {
     await pool.end();
   }
+}
+
+export async function currentWorkspaceUser(): Promise<CurrentWorkspaceUser | null> {
+  const access = await currentWorkspaceAccess();
+  return access.status === "allowed" ? access.user : null;
 }

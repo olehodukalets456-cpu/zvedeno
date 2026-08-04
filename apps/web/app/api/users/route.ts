@@ -1,21 +1,19 @@
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { createDatabase, users, workspaceMembers, workspaces } from "@zvedeno/database";
-import { currentWorkspaceUser } from "../../../lib/auth/workspace-user";
+import { createDatabase, users, workspaceMembers } from "@zvedeno/database";
+import { canManageWorkspace, currentWorkspaceUser } from "../../../lib/auth/workspace-user";
 
 const ROLES = new Set(["owner", "admin", "member", "viewer"] as const);
 type Role = "owner" | "admin" | "member" | "viewer";
 
 function redirectUrl(path: string): URL {
-  return new URL(path, process.env.APP_URL ?? "http://localhost:3000");
+  return new URL(path, process.env.APP_URL ?? "https://etarget.site");
 }
 
 export async function POST(request: NextRequest) {
-  if (process.env.AUTH_ENFORCED === "true") {
-    const currentUser = await currentWorkspaceUser();
-    if (currentUser?.role !== "owner" && currentUser?.role !== "admin") {
-      return NextResponse.redirect(redirectUrl("/users?error=forbidden"), 303);
-    }
+  const currentUser = await currentWorkspaceUser();
+  if (!currentUser || !canManageWorkspace(currentUser)) {
+    return NextResponse.redirect(redirectUrl("/projects?error=forbidden"), 303);
   }
 
   const form = await request.formData();
@@ -30,14 +28,6 @@ export async function POST(request: NextRequest) {
 
   const { db, pool } = createDatabase();
   try {
-    const workspaceSlug = process.env.DEFAULT_WORKSPACE_SLUG ?? "personal";
-    const [workspace] = await db
-      .select({ id: workspaces.id })
-      .from(workspaces)
-      .where(eq(workspaces.slug, workspaceSlug))
-      .limit(1);
-    if (!workspace) return NextResponse.redirect(redirectUrl("/users?error=workspace_not_found"), 303);
-
     let [user] = await db
       .select({ id: users.id })
       .from(users)
@@ -57,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     await db
       .insert(workspaceMembers)
-      .values({ workspaceId: workspace.id, userId: user.id, role })
+      .values({ workspaceId: currentUser.workspaceId, userId: user.id, role })
       .onConflictDoUpdate({
         target: [workspaceMembers.workspaceId, workspaceMembers.userId],
         set: { role }

@@ -18,7 +18,7 @@ export type SetupAccountOption = {
 };
 
 type AccountSelectorProps = {
-  projects: SetupProjectOption[];
+  targetProject?: SetupProjectOption | null;
   accounts: SetupAccountOption[];
 };
 
@@ -33,8 +33,7 @@ function accountMatches(account: SetupAccountOption, search: string): boolean {
   return haystack.includes(search);
 }
 
-export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
-  const [selectedProjectId, setSelectedProjectId] = useState("");
+export function AccountSelector({ targetProject, accounts }: AccountSelectorProps) {
   const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const normalizedSearch = search.trim().toLocaleLowerCase("uk-UA");
@@ -46,24 +45,12 @@ export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
     accounts.filter((account) => account.status !== "active" && accountMatches(account, normalizedSearch))
   ), [accounts, normalizedSearch]);
   const linkedAccountIds = useMemo(() => new Set(
-    selectedProjectId
+    targetProject
       ? accounts
-          .filter((account) => account.linkedProjects.some((project) => project.id === selectedProjectId))
+          .filter((account) => account.linkedProjects.some((project) => project.id === targetProject.id))
           .map((account) => account.id)
       : []
-  ), [accounts, selectedProjectId]);
-  const newSelectionCount = Array.from(selectedAccountIds).filter((id) => !linkedAccountIds.has(id)).length;
-
-  function selectProject(projectId: string) {
-    setSelectedProjectId(projectId);
-    setSelectedAccountIds(new Set(
-      projectId
-        ? accounts
-            .filter((account) => account.linkedProjects.some((project) => project.id === projectId))
-            .map((account) => account.id)
-        : []
-    ));
-  }
+  ), [accounts, targetProject]);
 
   function toggleAccount(accountId: string) {
     if (linkedAccountIds.has(accountId)) return;
@@ -81,7 +68,7 @@ export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
     return (
       <label className={`accountOption ${alreadyLinked ? "isLinked" : ""}`} key={account.id}>
         <input
-          checked={selectedAccountIds.has(account.id)}
+          checked={alreadyLinked || selectedAccountIds.has(account.id)}
           disabled={alreadyLinked}
           name="accountIds"
           onChange={() => toggleAccount(account.id)}
@@ -102,51 +89,28 @@ export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
 
   return (
     <>
-      <section className="formSection twoColumns">
-        <div>
-          <div className="formHeading">
-            <span>Продовжити</span>
-            <h2>Додати кабінети до існуючого проєкту</h2>
-          </div>
-          <label className="fieldLabel">
-            Існуючий проєкт
-            <select
-              name="existingProjectId"
-              onChange={(event) => selectProject(event.target.value)}
-              value={selectedProjectId}
-            >
-              <option value="">Створити новий проєкт</option>
-              {projects.map((project) => (
-                <option value={project.id} key={project.id}>{project.name}</option>
-              ))}
-            </select>
-          </label>
-          {selectedProjectId && (
-            <p>
-              Уже прив’язані кабінети позначені та заблоковані від випадкової зміни. Тут обери лише нові кабінети для проєкту.
-            </p>
-          )}
+      <section className="formSection aiGlass projectIdentityStep">
+        <div className="formHeading">
+          <span>Крок 3 · Проєкт</span>
+          <h2>{targetProject ? `Додаємо джерела до ${targetProject.name}` : "Назви новий проєкт"}</h2>
         </div>
-        <div>
-          <div className="formHeading">
-            <span>Новий</span>
-            <h2>Або створи новий проєкт</h2>
-          </div>
+        {targetProject ? (
+          <>
+            <input type="hidden" name="existingProjectId" value={targetProject.id} />
+            <p>Поточні кабінети вже позначені. Нижче обери лише нові джерела, які треба додати.</p>
+          </>
+        ) : (
           <label className="fieldLabel">
-            Назва нового проєкту
-            <input
-              disabled={Boolean(selectedProjectId)}
-              name="projectName"
-              placeholder="Наприклад, DMND"
-            />
+            Назва проєкту
+            <input name="projectName" placeholder="Наприклад, DMND" required />
           </label>
-        </div>
+        )}
       </section>
 
-      <section className="formSection">
+      <section className="formSection aiGlass">
         <div className="formHeading">
-          <span>Джерела</span>
-          <h2>Які рекламні кабінети належать цьому проєкту?</h2>
+          <span>Крок 4 · Джерела</span>
+          <h2>Обери рекламні кабінети для цього проєкту</h2>
         </div>
         <label className="fieldLabel">
           Пошук кабінету
@@ -157,11 +121,11 @@ export function AccountSelector({ projects, accounts }: AccountSelectorProps) {
             value={search}
           />
         </label>
-        <p>
+        <p className="accountSelectionSummary">
           Активних: <strong>{accounts.filter((account) => account.status === "active").length}</strong> ·
-          недоступних або заблокованих: <strong>{accounts.filter((account) => account.status !== "active").length}</strong> ·
-          уже в проєкті: <strong>{linkedAccountIds.size}</strong> ·
-          вибрано нових: <strong>{newSelectionCount}</strong>
+          недоступних: <strong>{accounts.filter((account) => account.status !== "active").length}</strong> ·
+          уже підключено: <strong>{linkedAccountIds.size}</strong> ·
+          вибрано нових: <strong>{selectedAccountIds.size}</strong>
         </p>
 
         <div className="accountGrid">
