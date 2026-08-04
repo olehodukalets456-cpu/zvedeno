@@ -1,0 +1,381 @@
+.reportBuilderMain {
+  width: min(1220px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 54px 0 110px;
+}
+
+.reportBuilderHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 36px;
+  align-items: end;
+  margin: 42px 0 28px;
+}
+
+.reportBuilderHero h1 {
+  max-width: 900px;
+  font-size: clamp(44px, 6vw, 78px);
+  line-height: .98;
+}
+
+.reportBuilderHero p,
+.reportMetricAudit > p,
+.reportBlueprint > p,
+.reportQuestionContent > p {
+  max-width: 840px;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.65;
+}
+
+.reportBuilderModel {
+  display: grid;
+  gap: 8px;
+  padding: 22px;
+  border: 1px solid rgba(79, 226, 154, .24);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(79, 226, 154, .12), rgba(9, 23, 32, .9));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .28);
+}
+
+.reportBuilderModel span,
+.reportBuilderModel small {
+  color: var(--muted);
+}
+
+.reportBuilderModel strong {
+  font-size: 22px;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.reportMetricAudit,
+.reportBlueprint,
+.reportQuestion {
+  padding: 26px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(79, 226, 154, .07), transparent 24rem),
+    linear-gradient(180deg, rgba(18, 36, 49, .95), rgba(9, 23, 32, .96));
+  box-shadow: 0 20px 70px rgba(0, 0, 0, .22);
+}
+
+.reportMetricChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.reportMetricChips > span {
+  display: grid;
+  gap: 4px;
+  min-width: 170px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: rgba(7, 16, 23, .78);
+}
+
+.reportMetricChips strong {
+  font-size: 13px;
+}
+
+.reportMetricChips small {
+  font-size: 12px;
+}
+
+.reportMetricAudit details {
+  margin-top: 20px;
+}
+
+.reportMetricAudit summary {
+  color: var(--accent);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.reportMetricList {
+  display: grid;
+  margin-top: 14px;
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.reportMetricList > div {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 1fr) 140px;
+  gap: 16px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+
+.reportMetricList > div:last-child {
+  border-bottom: 0;
+}
+
+.reportMetricList code {
+  color: #b7c7d0;
+  overflow-wrap: anywhere;
+}
+
+.reportMetricList b {
+  text-align: right;
+  color: var(--accent);
+}
+
+.reportQuestionnaire {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.reportQuestion {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.reportQuestionNumber {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: var(--accent-dark);
+  color: var(--accent);
+  font: 800 16px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.reportQuestionContent h2 {
+  margin: 0 0 8px;
+  font-size: clamp(26px, 3vw, 38px);
+}
+
+.reportAnswerOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.reportAnswerOption {
+  display: flex;
+  gap: 12px;
+  min-height: 92px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: rgba(7, 16, 23, .74);
+  cursor: pointer;
+  transition: border-color .18s ease, transform .18s ease, background .18s ease;
+}
+
+.reportAnswerOption:hover {
+  transform: translateY(-2px);
+  border-color: #35604d;
+}
+
+.reportAnswerOption:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(21, 61, 46, .65);
+}
+
+.reportAnswerOption input,
+.reportAnswerBoolean input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.reportAnswerOption span {
+  display: grid;
+  gap: 6px;
+}
+
+.reportAnswerOption small {
+  line-height: 1.45;
+}
+
+.reportAnswerBoolean {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.reportAnswerBoolean label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: rgba(7, 16, 23, .74);
+  cursor: pointer;
+}
+
+.reportAnswerBoolean label:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(21, 61, 46, .65);
+}
+
+.reportQuestion textarea {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #08131b;
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+  outline: none;
+}
+
+.reportQuestion textarea:focus {
+  border-color: var(--accent);
+}
+
+.reportQuestionSubmit {
+  justify-self: end;
+  min-width: 260px;
+  margin-top: 4px;
+}
+
+.reportBlueprint {
+  margin-top: 18px;
+}
+
+.reportBlueprintStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.reportBlueprintStats > div {
+  display: grid;
+  gap: 5px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(7, 16, 23, .75);
+}
+
+.reportBlueprintStats strong {
+  color: var(--accent);
+  font-size: 24px;
+}
+
+.reportBlueprintStats span {
+  color: var(--muted);
+}
+
+.reportTabPreview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: rgba(7, 16, 23, .7);
+}
+
+.reportTabPreview span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #122431;
+}
+
+.reportTabPreview b {
+  color: var(--accent);
+  font: 800 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.reportBlueprintMetrics {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.reportBlueprintMetrics > div {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.reportBlueprintMetrics span {
+  color: var(--muted);
+}
+
+.reportBlueprintMetrics code {
+  color: #d8e3e8;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.reportBuilderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 24px;
+}
+
+@media (max-width: 860px) {
+  .reportBuilderHero,
+  .reportQuestion {
+    grid-template-columns: 1fr;
+  }
+
+  .reportAnswerOptions,
+  .reportBlueprintStats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .reportMetricList > div,
+  .reportBlueprintMetrics > div {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .reportMetricList b {
+    text-align: left;
+  }
+}
+
+@media (max-width: 540px) {
+  .reportBuilderMain {
+    width: min(100% - 24px, 1220px);
+    padding-top: 32px;
+  }
+
+  .reportAnswerOptions,
+  .reportBlueprintStats {
+    grid-template-columns: 1fr;
+  }
+
+  .reportAnswerBoolean,
+  .reportBuilderActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reportQuestionSubmit,
+  .reportBuilderActions a,
+  .reportBuilderActions button {
+    width: 100%;
+  }
+}
