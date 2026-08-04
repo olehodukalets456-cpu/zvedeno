@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { createDatabase, projects } from "@zvedeno/database";
-import { continueReportInterview, loadReportInterview, startReportInterview } from "../../../../../../lib/report-interview";
-import { currentWorkspaceUser } from "../../../../../../lib/auth/workspace-user";
+import { continueReportInterview, loadReportInterview, startReportInterview } from "../../../../../lib/report-interview";
+import { currentWorkspaceUser } from "../../../../../lib/auth/workspace-user";
 
 type RouteContext = { params: Promise<{ projectId: string }> };
 
