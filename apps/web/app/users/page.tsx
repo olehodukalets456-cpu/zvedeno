@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { createDatabase, users, workspaceMembers, workspaces } from "@zvedeno/database";
-import { currentWorkspaceUser } from "../../lib/auth/workspace-user";
+import { canManageWorkspace, currentWorkspaceUser } from "../../lib/auth/workspace-user";
 import { AuthActions } from "./auth-actions";
 
 type UsersPageProps = {
@@ -13,14 +14,14 @@ export const dynamic = "force-dynamic";
 export default async function UsersPage({ searchParams }: UsersPageProps) {
   const query = await searchParams;
   const currentUser = await currentWorkspaceUser();
-  const canManage = currentUser?.role === "owner" || currentUser?.role === "admin" || process.env.AUTH_ENFORCED !== "true";
+  if (!currentUser) redirect("/auth/sign-in?callbackUrl=/users");
+  const canManage = canManageWorkspace(currentUser);
   const { db, pool } = createDatabase();
   try {
-    const workspaceSlug = process.env.DEFAULT_WORKSPACE_SLUG ?? "personal";
     const [workspace] = await db
       .select({ id: workspaces.id, name: workspaces.name })
       .from(workspaces)
-      .where(eq(workspaces.slug, workspaceSlug))
+      .where(eq(workspaces.id, currentUser.workspaceId))
       .limit(1);
 
     const members = workspace
@@ -43,24 +44,20 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
       <main className="setupMain aiShell teamPage">
         <div className="aiAmbient" aria-hidden="true"><i /><i /><i /></div>
         <div className="teamPageTopline">
-          <Link className="backLink aiBack" href="/">← На головну</Link>
-          <AuthActions authenticated={Boolean(currentUser)} />
+          <Link className="backLink aiBack" href="/projects">← До кабінету проєктів</Link>
+          <AuthActions authenticated />
         </div>
         <header className="setupHeader compactHeader aiPageHeader">
           <div className="eyebrow">TEAM ACCESS</div>
-          <h1>Кабінети користувачів і ролі доступу.</h1>
+          <h1>Користувачі, запрошення й ролі доступу.</h1>
           <p>
-            Neon Auth відповідає за реєстрацію, вхід і сесії. Workspace-роль визначає,
-            хто керує проєктами, хто працює зі звітами, а хто лише переглядає.
+            Спочатку owner або admin додає email і роль. Потім людина створює кабінет із цим самим email
+            та отримує доступ до workspace. Випадкова реєстрація без запрошення не відкриває жодних проєктів.
           </p>
         </header>
 
-        {currentUser ? (
-          <div className="successNotice">Увійшов як {currentUser.email} · {currentUser.role}</div>
-        ) : (
-          <div className="configNotice">Авторизація готова, але примусовий захист поки не ввімкнено. Створи owner-сесію перед активацією AUTH_ENFORCED.</div>
-        )}
-        {query.saved === "1" && <div className="successNotice">Користувача й роль збережено.</div>}
+        <div className="successNotice">Увійшов як {currentUser.email} · {currentUser.role}</div>
+        {query.saved === "1" && <div className="successNotice">Email і роль підготовлено. Людина може створити кабінет.</div>}
         {query.error && <div className="errorNotice">Не вдалося зберегти користувача: {String(query.error)}</div>}
 
         <section className="projectGrid teamGrid">
@@ -74,12 +71,11 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
                   <span className={`teamRole teamRole-${member.role}`}>{member.role}</span>
                 </div>
               ))}
-              {members.length === 0 && <p>У workspace ще немає користувачів.</p>}
             </div>
           </article>
 
           <article className="projectPanel aiGlass">
-            <div className="formHeading"><span>New account</span><h2>Підготувати доступ користувачу</h2></div>
+            <div className="formHeading"><span>Invitation</span><h2>Підготувати доступ користувачу</h2></div>
             {canManage ? (
               <form className="teamInviteForm" action="/api/users" method="post">
                 <label className="fieldLabel">Імʼя<input name="name" placeholder="Імʼя користувача" /></label>
@@ -88,19 +84,17 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
                   Роль
                   <select name="role" defaultValue="viewer">
                     <option value="viewer">Viewer — лише перегляд</option>
-                    <option value="member">Member — робота зі звітами</option>
-                    <option value="admin">Admin — керування проєктами</option>
+                    <option value="member">Member — звіти та ручні результати</option>
+                    <option value="admin">Admin — проєкти, Meta і команда</option>
                     <option value="owner">Owner — повний доступ</option>
                   </select>
                 </label>
-                <button className="primaryButton aiPrimary" type="submit">Зберегти доступ</button>
+                <button className="primaryButton aiPrimary" type="submit">Підготувати доступ</button>
               </form>
-            ) : (
-              <div className="configNotice">Додавати людей можуть лише owner або admin.</div>
-            )}
+            ) : <div className="configNotice">Додавати людей можуть лише owner або admin.</div>}
             <p className="teamAuthNote">
-              Тут наперед задається email і роль. Людина реєструється з цим самим email на сторінці входу,
-              після чого її Neon Auth-сесія автоматично прив’язується до підготовленого доступу.
+              Після цього надішли людині посилання <strong>etarget.site/auth/sign-in?mode=sign-up</strong>.
+              Вона сама задасть пароль — адміністратори його не бачать і не створюють.
             </p>
           </article>
         </section>
