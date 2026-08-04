@@ -107,16 +107,17 @@ export default async function AccountsSetupPage({ searchParams }: AccountsSetupP
           <span className="isDone">1. Кабінет</span>
           <span className="isDone">2. Meta</span>
           <span className="isActive">3. Проєкт</span>
-          <span>4. Звіт</span>
+          <span>4. AI-інтервʼю</span>
+          <span>5. Звіт</span>
         </div>
 
         <header className="setupHeader compactHeader aiPageHeader">
           <div className="eyebrow">PROJECT BUILDER</div>
-          <h1>{targetProject ? `Додай джерела до ${targetProject.name}` : "Створи проєкт із конкретних Meta-кабінетів."}</h1>
+          <h1>{targetProject ? `Додай джерела до ${targetProject.name}` : "Обери Meta-кабінети для нового проєкту."}</h1>
           <p>
             {targetProject
-              ? "Поточні джерела не змінюються. Обери нові кабінети, які треба додати, і запусти синхронізацію."
-              : "Дай проєкту назву, обери його рекламні кабінети та опиши бізнес. Дані й майбутня структура звіту зберігатимуться лише всередині цього проєкту."}
+              ? "Система завантажить дані з нових кабінетів, повторно просканує доступні метрики й запропонує оновити структуру звіту."
+              : "Після вибору кабінетів система спочатку завантажить фактичні дані Meta. Лише потім AI проаналізує події, цінності, кампанії, креативи й поставить уточнювальні питання."}
           </p>
         </header>
 
@@ -153,42 +154,30 @@ export default async function AccountsSetupPage({ searchParams }: AccountsSetupP
 
             <section className="formSection aiGlass aiBriefSection">
               <div className="formHeading">
-                <span>Крок 5 · Контекст</span>
-                <h2>Що система має бачити у звіті?</h2>
+                <span>Необовʼязковий контекст</span>
+                <h2>Одним абзацом: що це за бізнес?</h2>
               </div>
               <p>
-                Опиши продукти, напрями, воронки та справжню конверсію. AI зіставить цей опис із кампаніями,
-                цілями, Meta events, метриками й креативами вибраних кабінетів.
+                Не потрібно вручну проєктувати звіт. Напиши лише те, чого Meta не може знати: що вважається реальною покупкою,
+                чи є CRM, Telegram, бот, підтверджені ліди або інший фінальний результат поза рекламним кабінетом.
               </p>
               <label className="fieldLabel aiPromptField">
-                Завдання для AI
+                Контекст для першого AI-аудиту
                 <textarea
                   name="projectBrief"
-                  rows={7}
-                  placeholder="Наприклад: це e-commerce. Напрями визначай за категоріями товарів, основний результат — покупки. Показуй креативи, кампанії, кабінети, ROAS і CPA."
+                  rows={5}
+                  placeholder="Наприклад: e-commerce. Головне — реальний дохід і ROAS. Частина покупок фіксується на сайті, повернення у Meta не передаються."
                 />
               </label>
-              <label className="aiToggleCard">
-                <input type="checkbox" name="useAi" value="on" defaultChecked />
-                <span><strong>Проаналізувати структуру проєкту за допомогою AI</strong><small>Без передачі Meta-токена моделі.</small></span>
-              </label>
-
-              <details className="aiAdvanced">
-                <summary>Ручні правила як fallback</summary>
-                <p>Необовʼязково. Один рядок: <strong>КЛЮЧ:Фактичний результат</strong>.</p>
-                <label className="fieldLabel">
-                  Напрямки та результат
-                  <textarea name="directionRules" rows={4} placeholder={"SHOP:Покупки\nLEADS:Ліди"} />
-                </label>
-              </details>
+              <input type="hidden" name="useAi" value="on" />
             </section>
 
             <section className="formSection twoColumns aiGlass">
               <div>
-                <div className="formHeading"><span>Період</span><h2>Глибина аналізу</h2></div>
+                <div className="formHeading"><span>Період</span><h2>Скільки історії проаналізувати</h2></div>
                 <label className="fieldLabel">Початкова дата<input type="date" name="startDate" defaultValue={defaultStartDate()} required /></label>
                 <label className="fieldLabel">
-                  Перевіряти атрибуцію за останні
+                  Повторно перевіряти останні
                   <select name="lookbackDays" defaultValue="28">
                     <option value="7">7 днів</option><option value="14">14 днів</option><option value="28">28 днів</option><option value="60">60 днів</option>
                   </select>
@@ -202,21 +191,14 @@ export default async function AccountsSetupPage({ searchParams }: AccountsSetupP
                     <option value="15">Кожні 15 хвилин</option><option value="30">Кожні 30 хвилин</option><option value="60">Щогодини</option><option value="1440">Раз на день</option>
                   </select>
                 </label>
-                <label className="fieldLabel">
-                  Основний результат Meta
-                  <select name="resultMetric" defaultValue="auto">
-                    <option value="auto">AI визначить по контексту</option>
-                    <option value="action.lead">Ліди</option>
-                    <option value="action.messaging_conversation_started_7d">Переписки</option>
-                    <option value="action.link_click">Кліки</option>
-                    <option value="action.omni_purchase">Покупки</option>
-                  </select>
-                </label>
+                <div className="configNotice">
+                  Результат, дохід, ROAS, креативи, графіки та вкладки не обираються навмання на цьому кроці. AI запропонує їх після аналізу реальних даних.
+                </div>
               </div>
             </section>
 
             <button className="primaryButton submitButton aiPrimary aiLaunchButton" type="submit">
-              {targetProject ? "Додати кабінети й оновити звіт" : "Створити проєкт і зібрати звіт"}
+              {targetProject ? "Завантажити нові дані й оновити AI-аудит" : "Завантажити дані й перейти до AI-інтервʼю"}
             </button>
           </form>
         )}
