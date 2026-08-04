@@ -6,11 +6,19 @@ import {
   projects,
   reportRecipes
 } from "@zvedeno/database";
+import type { ReportInterviewState } from "@zvedeno/shared";
+import { syncAdaptiveReport } from "./adaptive-report-sync";
 import { refreshGoogleAccessToken } from "./google-client";
 import {
   syncDirectionReport,
   type DirectionReportConfig
 } from "./direction-report-by-name";
+
+const LEGACY_DMND_PROJECT_ID = "cc6f71d1-1043-4a2e-96d7-8f50484c010e";
+
+type AdaptiveConfig = DirectionReportConfig & {
+  reportInterview?: ReportInterviewState;
+};
 
 export type SheetsSyncOptions = {
   projectId?: string;
@@ -35,6 +43,7 @@ export async function syncGoogleReports(options: SheetsSyncOptions = {}): Promis
         spreadsheetId: googleReports.spreadsheetId,
         projectId: googleReports.projectId,
         projectName: projects.name,
+        projectCurrency: projects.currency,
         encryptedRefreshToken: googleConnections.encryptedRefreshToken,
         config: reportRecipes.config
       })
@@ -54,15 +63,32 @@ export async function syncGoogleReports(options: SheetsSyncOptions = {}): Promis
     for (const report of reports) {
       try {
         const accessToken = await refreshGoogleAccessToken(report.encryptedRefreshToken);
-        const result = await syncDirectionReport({
-          db,
-          accessToken,
-          reportId: report.reportId,
-          spreadsheetId: report.spreadsheetId,
-          projectId: report.projectId,
-          projectName: report.projectName,
-          config: (report.config ?? {}) as DirectionReportConfig
-        });
+        const config = (report.config ?? {}) as AdaptiveConfig;
+        const interview = config.reportInterview;
+        const adaptive = report.projectId !== LEGACY_DMND_PROJECT_ID
+          && interview?.version === "adaptive-v1"
+          && interview.status === "ready";
+
+        const result = adaptive
+          ? await syncAdaptiveReport({
+              db,
+              accessToken,
+              spreadsheetId: report.spreadsheetId,
+              projectId: report.projectId,
+              projectName: report.projectName,
+              currency: report.projectCurrency,
+              blueprint: interview.blueprint
+            })
+          : await syncDirectionReport({
+              db,
+              accessToken,
+              reportId: report.reportId,
+              spreadsheetId: report.spreadsheetId,
+              projectId: report.projectId,
+              projectName: report.projectName,
+              config
+            });
+
         summary.appended += result.appended;
         summary.updated += result.updated;
 
@@ -76,7 +102,7 @@ export async function syncGoogleReports(options: SheetsSyncOptions = {}): Promis
           .where(eq(googleReports.id, report.reportId));
       } catch (error) {
         summary.errors += 1;
-        console.error("Direction Google report sync failed", report.reportId, error);
+        console.error("Google report sync failed", report.reportId, error);
       }
     }
 
