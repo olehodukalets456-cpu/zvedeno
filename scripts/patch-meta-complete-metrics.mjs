@@ -19,6 +19,17 @@ const identityFields = `
   "ad_id",
   "ad_name"`;
 
+const stableIdentityFields = `
+  "date_start",
+  "date_stop",
+  "account_id",
+  "campaign_id",
+  "campaign_name",
+  "adset_id",
+  "adset_name",
+  "ad_id",
+  "ad_name"`;
+
 const deliveryFields = `
   "spend",
   "social_spend",
@@ -35,6 +46,17 @@ const deliveryFields = `
   "cpm",
   "cpp",
   "cost_per_unique_click",
+  "ctr"`;
+
+const stableDeliveryFields = `
+  "spend",
+  "impressions",
+  "reach",
+  "frequency",
+  "clicks",
+  "inline_link_clicks",
+  "cpc",
+  "cpm",
   "ctr"`;
 
 const replacementFields = `const FULL_INSIGHT_FIELDS = [${identityFields},${deliveryFields},
@@ -58,7 +80,7 @@ const replacementFields = `const FULL_INSIGHT_FIELDS = [${identityFields},${deli
   "conversion_rate_ranking"
 ].join(",");
 
-const VALUE_INSIGHT_FIELDS = [${identityFields},${deliveryFields},
+const VALUE_INSIGHT_FIELDS = [${stableIdentityFields},${stableDeliveryFields},
   "actions",
   "action_values",
   "cost_per_action_type",
@@ -66,13 +88,13 @@ const VALUE_INSIGHT_FIELDS = [${identityFields},${deliveryFields},
   "purchase_roas"
 ].join(",");
 
-const ACTION_VALUE_INSIGHT_FIELDS = [${identityFields},${deliveryFields},
+const ACTION_VALUE_INSIGHT_FIELDS = [${stableIdentityFields},${stableDeliveryFields},
   "actions",
   "action_values",
   "cost_per_action_type"
 ].join(",");
 
-const CORE_INSIGHT_FIELDS = [${identityFields},${deliveryFields},
+const CORE_INSIGHT_FIELDS = [${stableIdentityFields},${stableDeliveryFields},
   "actions"
 ].join(",");
 
