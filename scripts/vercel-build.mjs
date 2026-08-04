@@ -23,6 +23,7 @@ run("node scripts/patch-adaptive-tab-visibility.mjs");
 run("node scripts/patch-report-interview-deep-context.mjs");
 run("node scripts/patch-report-interview-questions.mjs");
 run("node scripts/patch-report-interview-state-safety.mjs");
+run("node scripts/patch-report-blueprint-followups.mjs");
 run("node scripts/patch-report-interview-iterative.mjs");
 run("node scripts/patch-report-builder-feedback.mjs");
 run("node scripts/patch-project-adaptive-panels.mjs");
