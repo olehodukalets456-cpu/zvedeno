@@ -19,6 +19,7 @@ run("node scripts/patch-project-ai-dashboard.mjs");
 run("node scripts/patch-adaptive-report-types.mjs");
 run("node scripts/patch-adaptive-dynamic-metrics.mjs");
 run("node scripts/patch-adaptive-dynamic-metrics-fix.mjs");
+run("node scripts/patch-adaptive-result-labels.mjs");
 run("node scripts/patch-adaptive-tab-visibility.mjs");
 run("node scripts/patch-report-interview-deep-context.mjs");
 run("node scripts/patch-report-metric-categories.mjs");
