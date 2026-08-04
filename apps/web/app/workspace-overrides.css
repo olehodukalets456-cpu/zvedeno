@@ -1,0 +1,11 @@
+.workspaceProjectShell > main.projectPage > .backLink {
+  display: none;
+}
+
+.workspaceProjectShell > main.projectPage {
+  padding-top: 56px;
+}
+
+.workspaceProjectShell > main.trackerPage {
+  min-height: calc(100vh - 68px);
+}
