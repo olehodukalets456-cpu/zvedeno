@@ -17,6 +17,7 @@ run("node scripts/patch-project-ai-deep-context.mjs");
 run("node scripts/patch-project-scoped-analytics.mjs");
 run("node scripts/patch-project-ai-dashboard.mjs");
 run("node scripts/patch-adaptive-report-types.mjs");
+run("node scripts/patch-report-interview-questions.mjs");
 run("node scripts/patch-meta-complete-metrics.mjs");
 run("npx -y pnpm@9.15.9 --filter @zvedeno/database exec drizzle-kit push --force");
 run("npx -y pnpm@9.15.9 --filter @zvedeno/web build");
