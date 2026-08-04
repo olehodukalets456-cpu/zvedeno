@@ -32,5 +32,6 @@ run("node scripts/patch-report-builder-feedback.mjs");
 run("node scripts/patch-project-adaptive-panels.mjs");
 run("node scripts/patch-adaptive-snapshot-skip.mjs");
 run("node scripts/patch-meta-complete-metrics.mjs");
+run("node scripts/patch-client-report-experience.mjs");
 run("npx -y pnpm@9.15.9 --filter @zvedeno/database exec drizzle-kit push --force");
 run("npx -y pnpm@9.15.9 --filter @zvedeno/web build");
