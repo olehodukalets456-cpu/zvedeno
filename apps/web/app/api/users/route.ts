@@ -12,7 +12,7 @@ function redirectUrl(path: string): URL {
 
 export async function POST(request: NextRequest) {
   const currentUser = await currentWorkspaceUser();
-  if (!canManageWorkspace(currentUser)) {
+  if (!currentUser || !canManageWorkspace(currentUser)) {
     return NextResponse.redirect(redirectUrl("/projects?error=forbidden"), 303);
   }
 
