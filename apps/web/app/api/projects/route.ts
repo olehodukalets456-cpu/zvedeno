@@ -5,8 +5,7 @@ import {
   createDatabase,
   projectAdAccounts,
   projects,
-  reportRecipes,
-  workspaces
+  reportRecipes
 } from "@zvedeno/database";
 import {
   refreshCreativeWeeklySnapshots,
@@ -14,7 +13,9 @@ import {
   syncManualWeeklyReports,
   syncMetaData
 } from "@zvedeno/sync-engine";
-import { analyzeProjectReport, LEGACY_DMND_PROJECT_ID } from "../../../lib/project-ai";
+import { currentWorkspaceUser, canManageWorkspace } from "../../../lib/auth/workspace-user";
+import { LEGACY_DMND_PROJECT_ID } from "../../../lib/project-ai";
+import { startReportInterview } from "../../../lib/report-interview";
 
 function slugify(value: string): string {
   const base = value
@@ -74,10 +75,24 @@ function recipeConfig(
     includeCreativeWeekly: true,
     hideLegacyTabs: true,
     projectBrief,
-    uiVersion: "ai-v1",
+    uiVersion: "adaptive-v1",
     aiReport: {
       status: useAi ? "pending" : "disabled",
       analyzedAt: null
+    },
+    reportInterview: {
+      version: "adaptive-v1",
+      status: "questionnaire",
+      model: process.env.OPENAI_REPORT_BUILDER_MODEL ?? process.env.OPENAI_REPORT_MODEL ?? "gpt-5.6",
+      round: 0,
+      analyzedAt: null,
+      summary: "Очікується первинний аудит Meta-кабінетів.",
+      metricInventory: [],
+      recommendations: [],
+      questions: [],
+      answers: {},
+      blueprint: null,
+      warnings: []
     }
   };
   if (selectedResult !== "auto") config.resultMetric = selectedResult;
@@ -86,6 +101,10 @@ function recipeConfig(
 }
 
 export async function POST(request: NextRequest) {
+  const currentUser = await currentWorkspaceUser();
+  if (!currentUser) return NextResponse.redirect(redirectUrl("/auth/sign-in?callbackUrl=/setup/accounts"), 303);
+  if (!canManageWorkspace(currentUser)) return NextResponse.redirect(redirectUrl("/projects?error=forbidden"), 303);
+
   const form = await request.formData();
   const projectName = String(form.get("projectName") ?? "").trim();
   const existingProjectId = String(form.get("existingProjectId") ?? "").trim();
@@ -100,18 +119,10 @@ export async function POST(request: NextRequest) {
 
   const { db, pool } = createDatabase();
   try {
-    const workspaceSlug = process.env.DEFAULT_WORKSPACE_SLUG ?? "personal";
-    const [workspace] = await db
-      .select({ id: workspaces.id })
-      .from(workspaces)
-      .where(eq(workspaces.slug, workspaceSlug))
-      .limit(1);
-    if (!workspace) return NextResponse.redirect(redirectUrl("/setup?error=meta_not_connected"), 303);
-
     const selectedAccounts = await db
       .select({ id: adAccounts.id, currency: adAccounts.currency, timezone: adAccounts.timezone })
       .from(adAccounts)
-      .where(eq(adAccounts.workspaceId, workspace.id));
+      .where(eq(adAccounts.workspaceId, currentUser.workspaceId));
     const selectedSet = new Set(accountIds);
     const validAccounts = selectedAccounts.filter((account) => selectedSet.has(account.id));
     const primaryAccount = validAccounts[0];
@@ -125,7 +136,7 @@ export async function POST(request: NextRequest) {
       const [found] = await db
         .select({ id: projects.id, name: projects.name })
         .from(projects)
-        .where(and(eq(projects.id, existingProjectId), eq(projects.workspaceId, workspace.id)))
+        .where(and(eq(projects.id, existingProjectId), eq(projects.workspaceId, currentUser.workspaceId)))
         .limit(1);
       if (!found) return NextResponse.redirect(redirectUrl("/setup/accounts?error=project_not_found"), 303);
       project = found;
@@ -135,13 +146,13 @@ export async function POST(request: NextRequest) {
       const [sameSlug] = await db
         .select({ id: projects.id })
         .from(projects)
-        .where(and(eq(projects.workspaceId, workspace.id), eq(projects.slug, baseSlug)))
+        .where(and(eq(projects.workspaceId, currentUser.workspaceId), eq(projects.slug, baseSlug)))
         .limit(1);
       const slug = sameSlug ? `${baseSlug}-${Date.now().toString(36)}` : baseSlug;
       const [created] = await db
         .insert(projects)
         .values({
-          workspaceId: workspace.id,
+          workspaceId: currentUser.workspaceId,
           name: projectName,
           slug,
           timezone: primaryAccount.timezone ?? "UTC",
@@ -188,7 +199,7 @@ export async function POST(request: NextRequest) {
         .where(eq(reportRecipes.id, currentRecipe.id));
     } else {
       await db.insert(reportRecipes).values({
-        workspaceId: workspace.id,
+        workspaceId: currentUser.workspaceId,
         projectId: project.id,
         name: `${project.name} living report`,
         config
@@ -197,15 +208,18 @@ export async function POST(request: NextRequest) {
 
     const metaSummary = await syncMetaData({ projectId: project.id, dateFrom: startDate, fullBackfill: true });
     const weekly = await refreshCreativeWeeklySnapshots({ projectId: project.id });
-    let aiStatus = "skipped";
-    if (useAi && project.id !== LEGACY_DMND_PROJECT_ID) {
+
+    if (project.id !== LEGACY_DMND_PROJECT_ID) {
       try {
-        const aiReport = await analyzeProjectReport({ projectId: project.id, brief: projectBrief });
-        aiStatus = aiReport.status;
+        await startReportInterview({ projectId: project.id, brief: projectBrief });
       } catch (error) {
-        console.error("Automatic AI report analysis failed", error);
-        aiStatus = "failed";
+        console.error("Automatic adaptive report interview failed", error);
       }
+      const url = redirectUrl(`/projects/${project.id}/report-builder`);
+      url.searchParams.set("synced", String(metaSummary.insights));
+      url.searchParams.set("weekly", String(weekly.snapshots));
+      url.searchParams.set("errors", String(metaSummary.errors));
+      return NextResponse.redirect(url, 303);
     }
 
     if (existing) {
@@ -215,10 +229,7 @@ export async function POST(request: NextRequest) {
       url.searchParams.set("sync", "done");
       url.searchParams.set("meta", String(metaSummary.insights));
       url.searchParams.set("weekly", String(weekly.snapshots));
-      url.searchParams.set("sheets", String(
-        sheetSummary.appended + sheetSummary.updated + manualWeekly.appended + manualWeekly.updated
-      ));
-      url.searchParams.set("ai", aiStatus);
+      url.searchParams.set("sheets", String(sheetSummary.appended + sheetSummary.updated + manualWeekly.appended + manualWeekly.updated));
       return NextResponse.redirect(url, 303);
     }
 
@@ -226,7 +237,6 @@ export async function POST(request: NextRequest) {
     url.searchParams.set("synced", String(metaSummary.insights));
     url.searchParams.set("weekly", String(weekly.snapshots));
     url.searchParams.set("errors", String(metaSummary.errors));
-    url.searchParams.set("ai", aiStatus);
     return NextResponse.redirect(url, 303);
   } catch (error) {
     console.error("Project save failed", error);

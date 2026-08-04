@@ -1,3 +1,4 @@
+export * from "./adaptive-report-sync";
 export * from "./direction-report-by-name";
 export * from "./direction-reports-sync";
 export * from "./google-client";

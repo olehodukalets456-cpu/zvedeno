@@ -18,4 +18,5 @@ export type ManualColumnDefinition = {
   options?: string[];
 };
 
+export * from "./report-blueprint";
 export * from "./secrets";

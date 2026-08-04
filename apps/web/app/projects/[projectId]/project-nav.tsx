@@ -30,6 +30,8 @@ export function ProjectNav({ currentProjectId, projects, userLabel, role }: Proj
         </select>
       </label>
       <nav className="workspaceProjectLinks" aria-label="Workspace">
+        <Link href={`/projects/${currentProjectId}/analytics`}>Аналітика</Link>
+        <Link href={`/projects/${currentProjectId}/report-builder`}>Конструктор звіту</Link>
         <Link href="/projects">Усі проєкти</Link>
         <Link href="/setup">Підключення</Link>
         <Link href="/users">Користувачі</Link>
