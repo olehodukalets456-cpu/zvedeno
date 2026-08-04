@@ -6,8 +6,8 @@ import {
   projects,
   reportRecipes
 } from "@zvedeno/database";
+import { syncGoogleReports } from "./direction-reports-sync";
 import { syncMetaData } from "./meta-sync";
-import { syncGoogleReports } from "./sheets-sync";
 
 type RecipeConfig = { refreshMinutes?: number };
 
