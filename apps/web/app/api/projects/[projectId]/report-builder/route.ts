@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { createDatabase, projects } from "@zvedeno/database";
+import { syncGoogleReports } from "@zvedeno/sync-engine";
 import { continueReportInterview, loadReportInterview, startReportInterview } from "../../../../../lib/report-interview";
 import { currentWorkspaceUser } from "../../../../../lib/auth/workspace-user";
 
@@ -47,6 +48,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const state = await continueReportInterview({ projectId, answers });
     const url = redirectUrl(`/projects/${projectId}/report-builder`);
     url.searchParams.set(state.status === "ready" ? "ready" : "round", String(state.status === "ready" ? 1 : state.round));
+    if (state.status === "ready") {
+      const sheets = await syncGoogleReports({ projectId });
+      url.searchParams.set("sheets", String(sheets.appended + sheets.updated));
+      url.searchParams.set("sheetErrors", String(sheets.errors));
+    }
     return NextResponse.redirect(url, 303);
   } catch (error) {
     console.error("Report interview failed", error);
