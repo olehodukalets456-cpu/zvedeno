@@ -73,7 +73,9 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
     const insightCounts = new Map(insightCountRows.map((row) => [row.projectId, Number(row.total)]));
     const latestRuns = new Map<string, { status: string; createdAt: Date }>();
     for (const run of recentRunRows) {
-      if (!latestRuns.has(run.projectId)) latestRuns.set(run.projectId, { status: run.status, createdAt: run.createdAt });
+      if (run.projectId && !latestRuns.has(run.projectId)) {
+        latestRuns.set(run.projectId, { status: run.status, createdAt: run.createdAt });
+      }
     }
 
     const activeProjects = projectRows.filter((project) => !project.archived);
